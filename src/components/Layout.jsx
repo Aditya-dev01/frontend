@@ -1,19 +1,23 @@
 import { Outlet } from "react-router-dom";
+
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
 export default function Layout() {
+
   return (
-    <div className="min-h-screen bg-[#f4f7fa]">
+    <div className="min-h-screen bg-[#f5f7fa]">
 
       <Sidebar />
 
-      <div className="lg:ml-[260px]">
+      <div className="ml-[245px]">
 
         <Topbar />
 
-        <main className="p-5 md:p-7 lg:p-8">
+        <main className="p-7">
+
           <Outlet />
+
         </main>
 
       </div>
