@@ -14,7 +14,6 @@ import OCRResults from "./pages/OCRResults";
 import VerificationResult from "./pages/VerificationResult";
 import RiskDashboard from "./pages/RiskDashboard";
 import AuditHistory from "./pages/AuditHistory";
-import Settings from "./pages/Settings";
 
 import UserDashboard from "./pages/UserDashboard";
 import IdentityCheck from "./pages/IdentityCheck";
