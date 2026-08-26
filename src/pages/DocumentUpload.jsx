@@ -1,4 +1,6 @@
 import { useState } from "react";
+import axios from "axios";
+
 import {
   ScanSearch,
   ArrowRight,
@@ -12,6 +14,8 @@ import FileUpload from "../components/FileUpload";
 export default function DocumentUpload() {
 
   const navigate = useNavigate();
+
+  const [loading, setLoading] = useState(false);
 
   const [files, setFiles] = useState({
     passport: null,
@@ -40,7 +44,7 @@ export default function DocumentUpload() {
 
   };
 
-  const startScreening = () => {
+  const startScreening = async () => {
 
     const hasDocument =
       files.passport ||
@@ -58,10 +62,82 @@ export default function DocumentUpload() {
       return;
     }
 
-    navigate("/screening/DEMO-001/ocr");
+    // Select the first available identity document
+    const documentFile =
+      files.passport ||
+      files.visa ||
+      files.nationalId ||
+      files.license ||
+      files.permit;
+
+    try {
+
+      setLoading(true);
+
+      const formData = new FormData();
+
+      // Backend expects image
+      formData.append(
+        "image",
+        documentFile
+      );
+
+      // Backend expects function
+      formData.append(
+        "function",
+        "validate"
+      );
+
+      console.log("Sending document:", documentFile.name);
+
+      const response = await axios.post(
+        "https://hackathon-backend-0eoj.onrender.com/ocr",
+        formData
+      );
+
+      console.log(
+        "OCR Backend Response:",
+        response.data
+      );
+
+      // Save OCR result for the next page
+      sessionStorage.setItem(
+        "ocrResult",
+        response.data
+      );
+
+      sessionStorage.setItem(
+        "documentName",
+        documentFile.name
+      );
+
+      // Go to OCR results page
+      navigate(
+        "/screening/DEMO-001/ocr"
+      );
+
+    } catch (error) {
+
+      console.error(
+        "OCR API Error:",
+        error
+      );
+
+      alert(
+        error.response?.data ||
+        "Unable to connect to OCR backend."
+      );
+
+    } finally {
+
+      setLoading(false);
+
+    }
+
   };
 
   return (
+
     <div className="max-w-[1250px] mx-auto">
 
       {/* Header */}
@@ -71,16 +147,23 @@ export default function DocumentUpload() {
         <div>
 
           <div className="flex items-center gap-2 text-xs text-slate-400 mb-2">
+
             <ScanSearch size={14} />
+
             SCREENING / NEW CASE
+
           </div>
 
           <h1 className="text-2xl font-bold text-[#17212b]">
+
             New Identity Screening
+
           </h1>
 
           <p className="text-sm text-slate-500 mt-1">
+
             Submit identity documents for AI-assisted verification.
+
           </p>
 
         </div>
@@ -97,6 +180,7 @@ export default function DocumentUpload() {
         </div>
 
       </div>
+
 
       {/* Uploads */}
 
@@ -172,6 +256,7 @@ export default function DocumentUpload() {
 
       </div>
 
+
       {/* Action */}
 
       <div className="mt-7 bg-white border border-slate-200 rounded-lg p-5 flex flex-col md:flex-row justify-between items-center gap-4">
@@ -179,28 +264,40 @@ export default function DocumentUpload() {
         <div>
 
           <p className="text-sm font-semibold text-[#17212b]">
+
             Ready to begin screening?
+
           </p>
 
           <p className="text-xs text-slate-500 mt-1">
+
             Uploaded documents will be processed by the verification pipeline.
+
           </p>
 
         </div>
 
         <button
           onClick={startScreening}
-          className="px-6 py-3 bg-[#1677b8] hover:bg-[#12679f] text-white rounded-md text-sm font-semibold flex items-center gap-2"
+          disabled={loading}
+          className="px-6 py-3 bg-[#1677b8] hover:bg-[#12679f] disabled:bg-slate-400 text-white rounded-md text-sm font-semibold flex items-center gap-2"
         >
 
-          Start AI Screening
+          {loading
+            ? "Processing..."
+            : "Start AI Screening"
+          }
 
-          <ArrowRight size={17} />
+          {!loading && (
+            <ArrowRight size={17} />
+          )}
 
         </button>
 
       </div>
 
     </div>
+
   );
+
 }
