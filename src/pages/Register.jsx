@@ -1,5 +1,4 @@
 import { useState } from "react";
-
 import {
   ShieldCheck,
   User,
@@ -9,6 +8,8 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
+  AlertCircle,
+  CheckCircle,
 } from "lucide-react";
 
 import {
@@ -16,18 +17,30 @@ import {
   useNavigate,
 } from "react-router-dom";
 
+import { useAuth } from "../context/AuthContext";
+
 export default function Register() {
   const navigate = useNavigate();
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const { register } = useAuth();
 
-  const [password, setPassword] = useState("");
+  const [name, setName] =
+    useState("");
+
+  const [email, setEmail] =
+    useState("");
+
+  const [phone, setPhone] =
+    useState("");
+
+  const [password, setPassword] =
+    useState("");
+
   const [confirmPassword, setConfirmPassword] =
     useState("");
 
-  const [role, setRole] = useState("user");
+  const [role, setRole] =
+    useState("officer");
 
   const [showPassword, setShowPassword] =
     useState(false);
@@ -35,10 +48,18 @@ export default function Register() {
   const [showConfirmPassword, setShowConfirmPassword] =
     useState(false);
 
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [error, setError] =
+    useState("");
 
-  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] =
+    useState("");
+
+  const [loading, setLoading] =
+    useState(false);
+
+  // ===================================================
+  // SUBMIT
+  // ===================================================
 
   const submit = async (e) => {
     e.preventDefault();
@@ -46,10 +67,23 @@ export default function Register() {
     setError("");
     setSuccess("");
 
-    // -----------------------------
-    // FRONTEND VALIDATION
-    // -----------------------------
+    // Name
+    if (!name.trim()) {
+      setError(
+        "Please enter your full name."
+      );
+      return;
+    }
 
+    // Email
+    if (!email.trim()) {
+      setError(
+        "Please enter your email address."
+      );
+      return;
+    }
+
+    // Password
     if (password.length < 6) {
       setError(
         "Password must contain at least 6 characters."
@@ -57,90 +91,42 @@ export default function Register() {
       return;
     }
 
+    // Confirm password
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-
-    if (!name.trim()) {
-      setError("Please enter your full name.");
-      return;
-    }
-
-    if (!email.trim()) {
-      setError("Please enter your email address.");
+      setError(
+        "Passwords do not match."
+      );
       return;
     }
 
     try {
       setLoading(true);
 
-      // -----------------------------
-      // SEND DATA TO FLASK BACKEND
-      // -----------------------------
+      const result = await register({
+        name,
+        email,
+        phone,
+        password,
+        role,
+      });
 
-      const response = await fetch(
-        "http://127.0.0.1:5000/register",
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type": "application/json",
-          },
-
-          body: JSON.stringify({
-            name: name.trim(),
-            email: email.trim().toLowerCase(),
-            phone: phone.trim(),
-            password: password,
-            role: role,
-          }),
-        }
+      console.log(
+        "Register result:",
+        result
       );
 
-      let data;
-
-      try {
-        data = await response.json();
-      } catch {
-        throw new Error(
-          "Invalid response received from server."
-        );
-      }
-
-      // -----------------------------
-      // REGISTRATION FAILED
-      // -----------------------------
-
-      if (!response.ok) {
+      if (!result.success) {
         setError(
-          data.message ||
+          result.message ||
             "Unable to create account."
         );
-
         return;
       }
 
-      // -----------------------------
-      // REGISTRATION SUCCESSFUL
-      // -----------------------------
-
       setSuccess(
-        data.message ||
+        result.message ||
           "Account created successfully."
       );
-
-      console.log(
-        "Registration successful:",
-        data
-      );
-
-      /*
-       * Do NOT create a fake JWT here.
-       *
-       * The user will login through Login.jsx.
-       * Flask will generate a NEW JWT during login.
-       */
 
       // Clear form
       setName("");
@@ -148,13 +134,14 @@ export default function Register() {
       setPhone("");
       setPassword("");
       setConfirmPassword("");
-      setRole("user");
+      setRole("officer");
 
-      // Redirect to login after a short delay
+      // Go to login
       setTimeout(() => {
-        navigate("/login");
+        navigate("/login", {
+          replace: true,
+        });
       }, 1200);
-
     } catch (error) {
       console.error(
         "Registration error:",
@@ -162,21 +149,25 @@ export default function Register() {
       );
 
       setError(
-        "Unable to connect to registration server. Please make sure Flask is running."
+        "Unable to connect to registration server."
       );
     } finally {
       setLoading(false);
     }
   };
 
+  // ===================================================
+  // UI
+  // ===================================================
+
   return (
     <div className="min-h-screen bg-[#0b1f33] flex items-center justify-center p-5">
 
       <div className="w-full max-w-[1050px] bg-white rounded-xl overflow-hidden shadow-2xl grid lg:grid-cols-[45%_55%]">
 
-        {/* ========================================
+        {/* =================================================
             BRAND PANEL
-        ======================================== */}
+        ================================================= */}
 
         <div className="hidden lg:flex bg-[#0b1f33] text-white p-12 flex-col justify-between">
 
@@ -213,34 +204,28 @@ export default function Register() {
             </p>
 
             <h2 className="text-4xl font-bold leading-tight">
-
               Create Your
               <br />
               Identity Profile
-
             </h2>
 
             <p className="mt-5 text-sm text-slate-400 leading-6 max-w-sm">
-
               Create your PramaanAI account and
-              securely access the identity verification
-              platform.
-
+              securely access the identity
+              verification platform.
             </p>
 
           </div>
 
           <div className="text-xs text-slate-500">
-
             PRAMAANAI SECURE IDENTITY PLATFORM
-
           </div>
 
         </div>
 
-        {/* ========================================
-            REGISTRATION FORM
-        ======================================== */}
+        {/* =================================================
+            FORM
+        ================================================= */}
 
         <div className="p-8 md:p-12">
 
@@ -251,56 +236,50 @@ export default function Register() {
             <div className="mb-7">
 
               <p className="text-xs font-bold tracking-[1.5px] text-[#1677b8]">
-
                 NEW ACCOUNT
-
               </p>
 
               <h2 className="text-3xl font-bold text-[#17212b] mt-2">
-
                 Create account
-
               </h2>
 
               <p className="text-sm text-slate-500 mt-2">
-
                 Register your PramaanAI account.
-
               </p>
 
             </div>
 
-            {/* ========================================
-                ERROR MESSAGE
-            ======================================== */}
+            {/* ERROR */}
 
             {error && (
+              <div className="mb-5 p-3 rounded-lg border border-red-200 bg-red-50 text-sm text-red-700 flex gap-2">
 
-              <div className="mb-5 p-3 rounded-lg border border-red-200 bg-red-50 text-sm text-red-700">
+                <AlertCircle
+                  size={17}
+                  className="mt-0.5 shrink-0"
+                />
 
-                {error}
+                <span>{error}</span>
 
               </div>
-
             )}
 
-            {/* ========================================
-                SUCCESS MESSAGE
-            ======================================== */}
+            {/* SUCCESS */}
 
             {success && (
+              <div className="mb-5 p-3 rounded-lg border border-green-200 bg-green-50 text-sm text-green-700 flex gap-2">
 
-              <div className="mb-5 p-3 rounded-lg border border-green-200 bg-green-50 text-sm text-green-700">
+                <CheckCircle
+                  size={17}
+                  className="mt-0.5 shrink-0"
+                />
 
-                {success}
+                <span>{success}</span>
 
               </div>
-
             )}
 
-            {/* ========================================
-                FORM
-            ======================================== */}
+            {/* FORM */}
 
             <form
               onSubmit={submit}
@@ -312,9 +291,7 @@ export default function Register() {
               <div>
 
                 <label className="text-xs font-semibold text-slate-600">
-
                   FULL NAME
-
                 </label>
 
                 <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8]">
@@ -333,6 +310,7 @@ export default function Register() {
                     }
                     placeholder="Enter your full name"
                     className="w-full ml-3 outline-none text-sm text-slate-800"
+                    autoComplete="name"
                   />
 
                 </div>
@@ -344,9 +322,7 @@ export default function Register() {
               <div>
 
                 <label className="text-xs font-semibold text-slate-600">
-
                   EMAIL ADDRESS
-
                 </label>
 
                 <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8]">
@@ -365,6 +341,7 @@ export default function Register() {
                     }
                     placeholder="Enter your email"
                     className="w-full ml-3 outline-none text-sm text-slate-800"
+                    autoComplete="email"
                   />
 
                 </div>
@@ -376,9 +353,7 @@ export default function Register() {
               <div>
 
                 <label className="text-xs font-semibold text-slate-600">
-
                   PHONE NUMBER
-
                 </label>
 
                 <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8]">
@@ -396,22 +371,19 @@ export default function Register() {
                     }
                     placeholder="Enter phone number"
                     className="w-full ml-3 outline-none text-sm text-slate-800"
+                    autoComplete="tel"
                   />
 
                 </div>
 
               </div>
 
-              {/* ========================================
-                  ROLE
-              ======================================== */}
+              {/* ROLE */}
 
               <div>
 
                 <label className="text-xs font-semibold text-slate-600">
-
                   ACCOUNT ROLE
-
                 </label>
 
                 <select
@@ -422,12 +394,8 @@ export default function Register() {
                   className="mt-2 w-full h-11 border border-slate-300 rounded-md px-3 text-sm outline-none focus:border-[#1677b8]"
                 >
 
-                  <option value="user">
-                    Registered User
-                  </option>
-
-                  <option value="guard">
-                    Security Guard
+                  <option value="officer">
+                    Security Officer
                   </option>
 
                   <option value="admin">
@@ -443,9 +411,7 @@ export default function Register() {
               <div>
 
                 <label className="text-xs font-semibold text-slate-600">
-
                   PASSWORD
-
                 </label>
 
                 <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8]">
@@ -468,6 +434,7 @@ export default function Register() {
                     }
                     placeholder="Minimum 6 characters"
                     className="w-full ml-3 outline-none text-sm text-slate-800"
+                    autoComplete="new-password"
                   />
 
                   <button
@@ -498,9 +465,7 @@ export default function Register() {
               <div>
 
                 <label className="text-xs font-semibold text-slate-600">
-
                   CONFIRM PASSWORD
-
                 </label>
 
                 <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8]">
@@ -525,6 +490,7 @@ export default function Register() {
                     }
                     placeholder="Confirm password"
                     className="w-full ml-3 outline-none text-sm text-slate-800"
+                    autoComplete="new-password"
                   />
 
                   <button
@@ -594,17 +560,15 @@ export default function Register() {
             <div className="mt-7 pt-5 border-t border-slate-200">
 
               <p className="text-[10px] font-bold text-slate-400 tracking-[1px]">
-
                 SECURE REGISTRATION
-
               </p>
 
               <p className="mt-2 text-xs text-slate-500 leading-5">
-
-                Your password is securely processed by
-                the PramaanAI backend. Passwords should
-                never be stored as plain text.
-
+                Your password is converted to a
+                SHA-256 hash before being sent to
+                the PramaanAI backend. The original
+                password is never sent to the
+                registration endpoint.
               </p>
 
             </div>

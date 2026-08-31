@@ -8,140 +8,185 @@ import {
 } from "lucide-react";
 
 import { useNavigate } from "react-router-dom";
-
 import FileUpload from "../components/FileUpload";
 
 export default function DocumentUpload() {
-
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(false);
+  const [documentFile, setDocumentFile] = useState(null);
 
-  const [files, setFiles] = useState({
-    passport: null,
-    visa: null,
-    nationalId: null,
-    license: null,
-    permit: null,
-    personPhoto: null,
-  });
-
-  const setFile = (name, file) => {
-
-    setFiles((prev) => ({
-      ...prev,
-      [name]: file,
-    }));
-
+  // Select document
+  const setFile = (file) => {
+    setDocumentFile(file);
   };
 
-  const removeFile = (name) => {
-
-    setFiles((prev) => ({
-      ...prev,
-      [name]: null,
-    }));
-
+  // Remove document
+  const removeFile = () => {
+    setDocumentFile(null);
   };
 
+  // Start AI screening
   const startScreening = async () => {
+    // ---------------------------------------------
+    // 1. Check document
+    // ---------------------------------------------
+    if (!documentFile) {
+      alert("Please upload an identity document.");
+      return;
+    }
 
-    const hasDocument =
-      files.passport ||
-      files.visa ||
-      files.nationalId ||
-      files.license ||
-      files.permit;
+    // ---------------------------------------------
+    // 2. Get JWT token from localStorage
+    // ---------------------------------------------
+    const token = localStorage.getItem("pramaanai_token");
 
-    if (!hasDocument) {
+    if (!token) {
+      alert("Your session has expired. Please login again.");
 
-      alert(
-        "Please upload at least one identity document."
-      );
+      navigate("/login", {
+        replace: true,
+      });
 
       return;
     }
 
-    // Select the first available identity document
-    const documentFile =
-      files.passport ||
-      files.visa ||
-      files.nationalId ||
-      files.license ||
-      files.permit;
-
     try {
-
       setLoading(true);
 
+      // ---------------------------------------------
+      // 3. Create FormData
+      // ---------------------------------------------
       const formData = new FormData();
 
-      // Backend expects image
-      formData.append(
-        "image",
-        documentFile
+      // Backend /ocr expects:
+      // request.files["image"]
+      formData.append("image", documentFile);
+
+      console.log(
+        "Sending document:",
+        documentFile.name
       );
 
-      // Backend expects function
-      formData.append(
-        "function",
-        "validate"
+      console.log(
+        "JWT token found:",
+        !!token
       );
 
-      console.log("Sending document:", documentFile.name);
-
+      // ---------------------------------------------
+      // 4. Send POST /ocr
+      // ---------------------------------------------
       const response = await axios.post(
         "https://hackathon-backend-0eoj.onrender.com/ocr",
-        formData
+        formData,
+        {
+          headers: {
+            // JWT authorization
+            Authorization: `Bearer ${token}`,
+
+            // DO NOT manually set Content-Type here.
+            // Axios automatically creates the correct
+            // multipart/form-data boundary for FormData.
+          },
+        }
       );
 
+      // ---------------------------------------------
+      // 5. Backend response
+      // ---------------------------------------------
       console.log(
         "OCR Backend Response:",
         response.data
       );
 
-      // Save OCR result for the next page
-      sessionStorage.setItem(
+      // ---------------------------------------------
+      // 6. Check backend success
+      // ---------------------------------------------
+      if (!response.data?.success) {
+        throw new Error(
+          response.data?.msg ||
+          "OCR processing failed."
+        );
+      }
+
+      // ---------------------------------------------
+      // 7. Save OCR result
+      // ---------------------------------------------
+      localStorage.setItem(
         "ocrResult",
-        response.data
+        JSON.stringify(
+          response.data || {}
+        )
       );
 
-      sessionStorage.setItem(
+      // ---------------------------------------------
+      // 8. Save document name
+      // ---------------------------------------------
+      localStorage.setItem(
         "documentName",
         documentFile.name
       );
 
-      // Go to OCR results page
+      // ---------------------------------------------
+      // 9. Navigate to OCR results
+      // ---------------------------------------------
       navigate(
         "/screening/DEMO-001/ocr"
       );
 
     } catch (error) {
-
       console.error(
         "OCR API Error:",
         error
       );
 
+      // ---------------------------------------------
+      // JWT authentication error
+      // ---------------------------------------------
+      if (
+        error.response?.status === 401 ||
+        error.response?.status === 403
+      ) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("ocrResult");
+        localStorage.removeItem("documentName");
+
+        alert(
+          "Your session has expired. Please login again."
+        );
+
+        navigate("/login", {
+          replace: true,
+        });
+
+        return;
+      }
+
+      // ---------------------------------------------
+      // Backend error
+      // ---------------------------------------------
+      const backendMessage =
+        error.response?.data?.msg ||
+        error.response?.data?.message ||
+        error.response?.data?.error;
+
       alert(
-        error.response?.data ||
+        backendMessage ||
+        error.message ||
         "Unable to connect to OCR backend."
       );
 
     } finally {
-
       setLoading(false);
-
     }
-
   };
 
   return (
-
     <div className="max-w-[1250px] mx-auto">
 
-      {/* Header */}
-
+      {/* -------------------------------------------
+          Header
+      -------------------------------------------- */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-7">
 
         <div>
@@ -162,11 +207,14 @@ export default function DocumentUpload() {
 
           <p className="text-sm text-slate-500 mt-1">
 
-            Submit identity documents for AI-assisted verification.
+            Upload one identity document for
+            AI-assisted verification.
 
           </p>
 
         </div>
+
+        {/* Secure Upload */}
 
         <div className="flex items-center gap-2 mt-4 md:mt-0 text-xs text-slate-500">
 
@@ -182,82 +230,27 @@ export default function DocumentUpload() {
       </div>
 
 
-      {/* Uploads */}
+      {/* -------------------------------------------
+          Document Upload
+      -------------------------------------------- */}
 
-      <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
-
-        <FileUpload
-          title="Passport"
-          file={files.passport}
-          onFileSelect={(file) =>
-            setFile("passport", file)
-          }
-          onRemove={() =>
-            removeFile("passport")
-          }
-        />
+      <div className="max-w-xl mx-auto">
 
         <FileUpload
-          title="Visa"
-          file={files.visa}
-          onFileSelect={(file) =>
-            setFile("visa", file)
-          }
-          onRemove={() =>
-            removeFile("visa")
-          }
-        />
-
-        <FileUpload
-          title="National Identity Card"
-          file={files.nationalId}
-          onFileSelect={(file) =>
-            setFile("nationalId", file)
-          }
-          onRemove={() =>
-            removeFile("nationalId")
-          }
-        />
-
-        <FileUpload
-          title="Driving License"
-          file={files.license}
-          onFileSelect={(file) =>
-            setFile("license", file)
-          }
-          onRemove={() =>
-            removeFile("license")
-          }
-        />
-
-        <FileUpload
-          title="Permit / Residence Document"
-          file={files.permit}
-          onFileSelect={(file) =>
-            setFile("permit", file)
-          }
-          onRemove={() =>
-            removeFile("permit")
-          }
-        />
-
-        <FileUpload
-          title="Person Photograph"
-          description="Clear frontal face photograph"
-          accept="image/*"
-          file={files.personPhoto}
-          onFileSelect={(file) =>
-            setFile("personPhoto", file)
-          }
-          onRemove={() =>
-            removeFile("personPhoto")
-          }
+          title="Identity Document"
+          description="Upload one passport, visa, national ID, driving license, or residence document"
+          accept="image/*,.pdf"
+          file={documentFile}
+          onFileSelect={setFile}
+          onRemove={removeFile}
         />
 
       </div>
 
 
-      {/* Action */}
+      {/* -------------------------------------------
+          Action Section
+      -------------------------------------------- */}
 
       <div className="mt-7 bg-white border border-slate-200 rounded-lg p-5 flex flex-col md:flex-row justify-between items-center gap-4">
 
@@ -271,11 +264,15 @@ export default function DocumentUpload() {
 
           <p className="text-xs text-slate-500 mt-1">
 
-            Uploaded documents will be processed by the verification pipeline.
+            The uploaded document will be
+            processed by the verification pipeline.
 
           </p>
 
         </div>
+
+
+        {/* Start Screening */}
 
         <button
           onClick={startScreening}
@@ -297,7 +294,5 @@ export default function DocumentUpload() {
       </div>
 
     </div>
-
   );
-
 }

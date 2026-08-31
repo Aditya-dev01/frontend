@@ -47,12 +47,6 @@ export default function Sidebar() {
         },
 
         {
-          name: "Risk Dashboard",
-          path: "/risk-dashboard",
-          icon: AlertTriangle,
-        },
-
-        {
           name: "Audit History",
           path: "/audit-history",
           icon: History,

@@ -53,7 +53,7 @@ const recentCases = [
     id: "IDG-2026-08122",
     document: "Passport",
     subject: "Unknown",
-    result: "High Risk",
+    result: "Rejected",
     risk: "high",
     score: 82,
     time: "13:57",
@@ -131,6 +131,14 @@ export default function Dashboard() {
         />
 
         <StatCard
+          title="Rejected"
+          value="90"
+          description="7.2% critical cases"
+          icon={ShieldAlert}
+          variant="danger"
+        />
+
+        <StatCard
           title="Suspicious"
           value="172"
           description="13.8% require review"
@@ -138,13 +146,6 @@ export default function Dashboard() {
           variant="warning"
         />
 
-        <StatCard
-          title="High Risk"
-          value="90"
-          description="7.2% critical cases"
-          icon={ShieldAlert}
-          variant="danger"
-        />
 
       </div>
 
@@ -267,6 +268,14 @@ export default function Dashboard() {
             />
 
             <RiskRow
+              label=" Rejected"
+              value="90"
+              percentage="7%"
+              width="7%"
+              color="bg-red-500"
+            />
+
+            <RiskRow
               label="Medium Risk"
               value="172"
               percentage="14%"
@@ -274,13 +283,7 @@ export default function Dashboard() {
               color="bg-amber-500"
             />
 
-            <RiskRow
-              label="High Risk"
-              value="90"
-              percentage="7%"
-              width="7%"
-              color="bg-red-500"
-            />
+            
 
           </div>
 

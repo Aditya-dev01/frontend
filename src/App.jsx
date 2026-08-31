@@ -5,6 +5,8 @@ import {
   Routes,
 } from "react-router-dom";
 
+import { AuthProvider } from "./context/AuthContext";
+
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 
@@ -12,157 +14,109 @@ import Dashboard from "./pages/Dashboard";
 import DocumentUpload from "./pages/DocumentUpload";
 import OCRResults from "./pages/OCRResults";
 import VerificationResult from "./pages/VerificationResult";
-import RiskDashboard from "./pages/RiskDashboard";
 import AuditHistory from "./pages/AuditHistory";
-
-import UserDashboard from "./pages/UserDashboard";
-import IdentityCheck from "./pages/IdentityCheck";
 
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <AuthProvider>
 
-      <Routes>
+      <BrowserRouter>
 
-        {/* =================================================
-            PUBLIC ROUTES
-        ================================================== */}
+        <Routes>
 
-        <Route
-          path="/login"
-          element={<Login />}
-        />
+          {/* ================================================
+              PUBLIC
+          ================================================= */}
 
-        <Route
-          path="/register"
-          element={<Register />}
-        />
+          <Route
+            path="/login"
+            element={<Login />}
+          />
+
+          <Route
+            path="/register"
+            element={<Register />}
+          />
 
 
-        {/* =================================================
-            ADMIN + SECURITY OFFICER CONSOLE
-        ================================================== */}
+          {/* ================================================
+              ADMIN + OFFICER
+          ================================================= */}
 
-        <Route
-          element={
-            <ProtectedRoute
-              allowedRoles={[
-                "admin",
-                "officer",
-              ]}
-            />
-          }
-        >
+          <Route
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  "admin",
+                  "officer",
+                ]}
+              />
+            }
+          >
 
-          <Route element={<Layout />}>
+            <Route element={<Layout />}>
 
-            {/* Dashboard */}
+              <Route
+                path="/dashboard"
+                element={<Dashboard />}
+              />
 
-            <Route
-              path="/dashboard"
-              element={<Dashboard />}
-            />
+              <Route
+                path="/screening/new"
+                element={<DocumentUpload />}
+              />
 
-            {/* New Screening */}
+              <Route
+                path="/screening/:id/ocr"
+                element={<OCRResults />}
+              />
 
-            <Route
-              path="/screening/new"
-              element={<DocumentUpload />}
-            />
+              <Route
+                path="/screening/:id/verification"
+                element={<VerificationResult />}
+              />
 
-            {/* OCR */}
+              <Route
+                path="/audit-history"
+                element={<AuditHistory />}
+              />
 
-            <Route
-              path="/screening/:id/ocr"
-              element={<OCRResults />}
-            />
-
-            {/* Verification */}
-
-            <Route
-              path="/screening/:id/verification"
-              element={<VerificationResult />}
-            />
-
-            {/* Risk Dashboard */}
-
-            <Route
-              path="/risk-dashboard"
-              element={<RiskDashboard />}
-            />
-
-            {/* Audit History */}
-
-            <Route
-              path="/audit-history"
-              element={<AuditHistory />}
-            />
+            </Route>
 
           </Route>
 
-        </Route>
 
-
-        {/* =================================================
-            REGISTERED USER
-        ================================================== */}
-
-        <Route
-          element={
-            <ProtectedRoute
-              allowedRoles={[
-                "user",
-              ]}
-            />
-          }
-        >
+          {/* ================================================
+              DEFAULT
+          ================================================= */}
 
           <Route
-            path="/user-dashboard"
-            element={<UserDashboard />}
+            path="/"
+            element={
+              <Navigate
+                to="/dashboard"
+                replace
+              />
+            }
           />
 
           <Route
-            path="/identity-check"
-            element={<IdentityCheck />}
+            path="*"
+            element={
+              <Navigate
+                to="/dashboard"
+                replace
+              />
+            }
           />
 
-        </Route>
+        </Routes>
 
+      </BrowserRouter>
 
-        {/* =================================================
-            DEFAULT ROUTE
-        ================================================== */}
-
-        <Route
-          path="/"
-          element={
-            <Navigate
-              to="/dashboard"
-              replace
-            />
-          }
-        />
-
-        {/* =================================================
-            UNKNOWN ROUTES
-        ================================================== */}
-
-        <Route
-          path="*"
-          element={
-            <Navigate
-              to="/dashboard"
-              replace
-            />
-          }
-        />
-
-      </Routes>
-
-    </BrowserRouter>
+    </AuthProvider>
   );
 }
