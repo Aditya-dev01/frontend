@@ -15,6 +15,7 @@ export default function DocumentUpload() {
 
   const [loading, setLoading] = useState(false);
   const [documentFile, setDocumentFile] = useState(null);
+  const [documentType, setDocumentType] = useState("passport");
 
   // Select document
   const setFile = (file) => {
@@ -51,6 +52,8 @@ export default function DocumentUpload() {
       return;
     }
 
+    const selectedDocumentType = (documentType || "passport").trim();
+
     try {
       setLoading(true);
 
@@ -62,120 +65,80 @@ export default function DocumentUpload() {
       // Backend /ocr expects:
       // request.files["image"]
       formData.append("image", documentFile);
+      formData.append("documentType", selectedDocumentType);
 
-      console.log(
-        "Sending document:",
-        documentFile.name
-      );
-
-      console.log(
-        "JWT token found:",
-        !!token
-      );
+      console.log("Sending document:", documentFile.name);
+      console.log("Document type:", selectedDocumentType);
+      console.log("JWT token found:", !!token);
 
       // ---------------------------------------------
       // 4. Send POST /ocr
       // ---------------------------------------------
       const response = await axios.post(
-        "https://hackathon-backend-0eoj.onrender.com/ocr",
-        formData,
-        {
-          headers: {
-            // JWT authorization
-            Authorization: `Bearer ${token}`,
+          "https://hackathon-backend-0eoj.onrender.com/ocr",
+          formData,
+          {
+            headers: {
+              // JWT authorization
+              Authorization: `Bearer ${token}`,
 
-            // DO NOT manually set Content-Type here.
-            // Axios automatically creates the correct
-            // multipart/form-data boundary for FormData.
-          },
+              // DO NOT manually set Content-Type here.
+              // Axios automatically creates the correct
+              // multipart/form-data boundary for FormData.
+            },
+          }
+        );
+
+        // ---------------------------------------------
+        // 5. Backend response
+        // ---------------------------------------------
+        console.log("OCR Backend Response:", response.data);
+
+        // ---------------------------------------------
+        // 6. Check backend success
+        // ---------------------------------------------
+        if (!response.data?.success) {
+          throw new Error(response.data?.msg || "OCR processing failed.");
         }
-      );
 
-      // ---------------------------------------------
-      // 5. Backend response
-      // ---------------------------------------------
-      console.log(
-        "OCR Backend Response:",
-        response.data
-      );
+        // ---------------------------------------------
+        // 7. Save OCR result, document name, and document type to localStorage
+        // ---------------------------------------------
+        localStorage.setItem("ocrResult", JSON.stringify(response.data || {}));
+        localStorage.setItem("documentName", documentFile.name);
+        localStorage.setItem("documentType", selectedDocumentType);
 
-      // ---------------------------------------------
-      // 6. Check backend success
-      // ---------------------------------------------
-      if (!response.data?.success) {
-        throw new Error(
-          response.data?.msg ||
-          "OCR processing failed."
-        );
-      }
-
-      // ---------------------------------------------
-      // 7. Save OCR result
-      // ---------------------------------------------
-      localStorage.setItem(
-        "ocrResult",
-        JSON.stringify(
-          response.data || {}
-        )
-      );
-
-      // ---------------------------------------------
-      // 8. Save document name
-      // ---------------------------------------------
-      localStorage.setItem(
-        "documentName",
-        documentFile.name
-      );
-
-      // ---------------------------------------------
-      // 9. Navigate to OCR results
-      // ---------------------------------------------
-      navigate(
-        "/screening/DEMO-001/ocr"
-      );
-
+        // ---------------------------------------------
+        // 8. Navigate to OCR results
+        // ---------------------------------------------
+        navigate("/screening/DEMO-001/ocr");
     } catch (error) {
-      console.error(
-        "OCR API Error:",
-        error
-      );
+        console.error("OCR API Error:", error);
 
-      // ---------------------------------------------
-      // JWT authentication error
-      // ---------------------------------------------
-      if (
-        error.response?.status === 401 ||
-        error.response?.status === 403
-      ) {
-        localStorage.removeItem("token");
-        localStorage.removeItem("ocrResult");
-        localStorage.removeItem("documentName");
+        // ---------------------------------------------
+        // JWT authentication error
+        // ---------------------------------------------
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          localStorage.removeItem("token");
+          localStorage.removeItem("ocrResult");
+          localStorage.removeItem("documentName");
+          localStorage.removeItem("documentType");
 
-        alert(
-          "Your session has expired. Please login again."
-        );
+          alert("Your session has expired. Please login again.");
+          navigate("/login", { replace: true });
 
-        navigate("/login", {
-          replace: true,
-        });
+          return;
+        }
 
-        return;
-      }
+        // ---------------------------------------------
+        // Backend error
+        // ---------------------------------------------
+        const backendMessage =
+          error.response?.data?.msg ||
+          error.response?.data?.message ||
+          error.response?.data?.error;
 
-      // ---------------------------------------------
-      // Backend error
-      // ---------------------------------------------
-      const backendMessage =
-        error.response?.data?.msg ||
-        error.response?.data?.message ||
-        error.response?.data?.error;
-
-      alert(
-        backendMessage ||
-        error.message ||
-        "Unable to connect to OCR backend."
-      );
-
+        alert(backendMessage || error.message || "Unable to connect to OCR backend.");
     } finally {
       setLoading(false);
     }
@@ -226,19 +189,36 @@ export default function DocumentUpload() {
           Secure upload channel
 
         </div>
-
       </div>
 
 
       {/* -------------------------------------------
           Document Upload
       -------------------------------------------- */}
+      <div className="max-w-xl mx-auto mb-5">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600 mb-2">
+          Document Type
+        </label>
+
+        <select
+          value={documentType}
+          onChange={(e) => setDocumentType(e.target.value)}
+          className="w-full h-11 border border-slate-300 rounded-lg px-3 text-sm outline-none focus:border-[#1677b8] bg-white"
+        >
+          <option value="passport">Passport</option>
+          <option value="aadhaar">Aadhaar</option>
+          <option value="pan">PAN Card</option>
+          <option value="driving_license">Driving License</option>
+          <option value="voter_id">Voter ID</option>
+          <option value="residence_permit">Residence Permit</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
 
       <div className="max-w-xl mx-auto">
-
         <FileUpload
           title="Identity Document"
-          description="Upload one passport, visa, national ID, driving license, or residence document"
+          description="Upload an identity document"
           accept="image/*,.pdf"
           file={documentFile}
           onFileSelect={setFile}
@@ -253,22 +233,14 @@ export default function DocumentUpload() {
       -------------------------------------------- */}
 
       <div className="mt-7 bg-white border border-slate-200 rounded-lg p-5 flex flex-col md:flex-row justify-between items-center gap-4">
-
         <div>
-
           <p className="text-sm font-semibold text-[#17212b]">
-
             Ready to begin screening?
-
           </p>
 
           <p className="text-xs text-slate-500 mt-1">
-
-            The uploaded document will be
-            processed by the verification pipeline.
-
+            The uploaded document will be processed by the verification pipeline.
           </p>
-
         </div>
 
 
@@ -280,19 +252,12 @@ export default function DocumentUpload() {
           className="px-6 py-3 bg-[#1677b8] hover:bg-[#12679f] disabled:bg-slate-400 text-white rounded-md text-sm font-semibold flex items-center gap-2"
         >
 
-          {loading
-            ? "Processing..."
-            : "Start AI Screening"
-          }
+          {loading ? "Processing..." : "Start AI Screening"}
 
-          {!loading && (
-            <ArrowRight size={17} />
-          )}
+          {!loading && <ArrowRight size={17} />}
 
         </button>
-
       </div>
-
     </div>
   );
 }
