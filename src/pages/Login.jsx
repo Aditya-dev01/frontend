@@ -10,33 +10,21 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-import {
-  Link,
-  useNavigate,
-} from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
   const navigate = useNavigate();
-
   const { login } = useAuth();
 
   const [email, setEmail] = useState("");
-  const [password, setPassword] =
-    useState("");
+  const [password, setPassword] = useState("");
 
-  const [role, setRole] =
-    useState("officer");
+  const [showPassword, setShowPassword] = useState(false);
 
-  const [showPassword, setShowPassword] =
-    useState(false);
-
-  const [error, setError] =
-    useState("");
-
-  const [loading, setLoading] =
-    useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   // ===================================================
   // SUBMIT LOGIN
@@ -47,82 +35,72 @@ export default function Login() {
 
     setError("");
 
-    if (!email.trim()) {
-      setError(
-        "Please enter your email address."
-      );
+    // -------------------------------------------------
+    // EMAIL VALIDATION
+    // -------------------------------------------------
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail) {
+      setError("Please enter your email address.");
       return;
     }
+
+    // -------------------------------------------------
+    // PASSWORD VALIDATION
+    // -------------------------------------------------
 
     if (!password) {
-      setError(
-        "Please enter your password."
-      );
-      return;
-    }
-
-    if (!role) {
-      setError(
-        "Please select your account role."
-      );
+      setError("Please enter your password.");
       return;
     }
 
     try {
       setLoading(true);
 
-      const result = await login(
-        email,
-        password,
-        role
-      );
-
-      console.log(
-        "Login result:",
-        result
-      );
-
-      if (!result.success) {
-        setError(
-          result.message ||
-            "Invalid login credentials."
-        );
-        return;
-      }
-
       /*
-       * JWT is already stored in localStorage
-       * by AuthContext.
+       * Flask /login expects:
+       *
+       * {
+       *   email: "...",
+       *   password: "..."
+       * }
+       *
+       * No role is required.
        */
 
-      const loggedInUser =
-        result.user;
+      console.log("Email being sent:", cleanEmail);
+      console.log("Password entered:", password);
 
-      if (
-        loggedInUser?.role === "admin" ||
-        loggedInUser?.role === "officer"
-      ) {
-        navigate(
-          loggedInUser.role === "admin"
-            ? "/dashboard"
-            : "/dashboard",
-          {
-            replace: true,
-          }
-        );
-      } else {
-        setError(
-          "Your account does not have a valid application role."
-        );
-      }
+      const result = await login(cleanEmail, password);
+
+console.log("Login result:", result);
+
+if (!result || !result.success) {
+  setError(
+    result?.message ||
+      result?.msg ||
+      "Invalid email or password."
+  );
+  return;
+}
+
+if (!result.token) {
+  setError(
+    "Login successful, but authentication token was not received."
+  );
+  return;
+}
+
+navigate("/dashboard", {
+  replace: true,
+});
     } catch (error) {
-      console.error(
-        "Login page error:",
-        error
-      );
+      console.error("Login page error:", error);
 
       setError(
-        "Unable to connect to the server."
+        error?.message ||
+          "Unable to connect to the authentication server."
       );
     } finally {
       setLoading(false);
@@ -148,13 +126,10 @@ export default function Login() {
             <div className="flex items-center gap-3">
 
               <div className="w-11 h-11 bg-[#1677b8] rounded-lg flex items-center justify-center">
-
                 <ShieldCheck size={25} />
-
               </div>
 
               <div>
-
                 <h1 className="font-bold text-lg">
                   PramaanAI
                 </h1>
@@ -162,7 +137,6 @@ export default function Login() {
                 <p className="text-[9px] tracking-[2px] text-slate-400">
                   IDENTITY INTELLIGENCE SYSTEM
                 </p>
-
               </div>
 
             </div>
@@ -249,11 +223,11 @@ export default function Login() {
                   EMAIL ADDRESS
                 </label>
 
-                <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8]">
+                <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8] focus-within:ring-1 focus-within:ring-[#1677b8]/20 transition">
 
                   <Mail
                     size={17}
-                    className="text-slate-400"
+                    className="text-slate-400 shrink-0"
                   />
 
                   <input
@@ -272,34 +246,6 @@ export default function Login() {
 
               </div>
 
-              {/* ROLE */}
-
-              <div>
-
-                <label className="text-xs font-semibold text-slate-600">
-                  ACCOUNT ROLE
-                </label>
-
-                <select
-                  value={role}
-                  onChange={(e) =>
-                    setRole(e.target.value)
-                  }
-                  className="mt-2 w-full h-11 border border-slate-300 rounded-md px-3 text-sm outline-none focus:border-[#1677b8]"
-                >
-
-                  <option value="officer">
-                    Security Officer
-                  </option>
-
-                  <option value="admin">
-                    System Administrator
-                  </option>
-
-                </select>
-
-              </div>
-
               {/* PASSWORD */}
 
               <div>
@@ -308,11 +254,11 @@ export default function Login() {
                   PASSWORD
                 </label>
 
-                <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8]">
+                <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8] focus-within:ring-1 focus-within:ring-[#1677b8]/20 transition">
 
                   <LockKeyhole
                     size={17}
-                    className="text-slate-400"
+                    className="text-slate-400 shrink-0"
                   />
 
                   <input
@@ -335,19 +281,21 @@ export default function Login() {
                     type="button"
                     onClick={() =>
                       setShowPassword(
-                        (previous) =>
-                          !previous
+                        (previous) => !previous
                       )
                     }
-                    className="text-slate-400 hover:text-slate-600"
+                    className="text-slate-400 hover:text-slate-600 transition"
+                    aria-label={
+                      showPassword
+                        ? "Hide password"
+                        : "Show password"
+                    }
                   >
-
                     {showPassword ? (
                       <EyeOff size={17} />
                     ) : (
                       <Eye size={17} />
                     )}
-
                   </button>
 
                 </div>
@@ -402,9 +350,10 @@ export default function Login() {
               </p>
 
               <p className="mt-2 text-xs text-slate-500 leading-5">
-                Your password is converted to a
-                SHA-256 hash before it is sent to
-                the PramaanAI authentication server.
+                Your login credentials are securely
+                transmitted to the PramaanAI authentication
+                server and authenticated using your account
+                credentials.
               </p>
 
             </div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+
 import {
   ShieldCheck,
   User,
@@ -24,38 +25,25 @@ export default function Register() {
 
   const { register } = useAuth();
 
-  const [name, setName] =
-    useState("");
+  // ===================================================
+  // FORM STATE
+  // ===================================================
 
-  const [email, setEmail] =
-    useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [organization, setOrganization] = useState("");
 
-  const [phone, setPhone] =
-    useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-  const [password, setPassword] =
-    useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const [confirmPassword, setConfirmPassword] =
-    useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const [role, setRole] =
-    useState("officer");
-
-  const [showPassword, setShowPassword] =
-    useState(false);
-
-  const [showConfirmPassword, setShowConfirmPassword] =
-    useState(false);
-
-  const [error, setError] =
-    useState("");
-
-  const [success, setSuccess] =
-    useState("");
-
-  const [loading, setLoading] =
-    useState(false);
+  const [loading, setLoading] = useState(false);
 
   // ===================================================
   // SUBMIT
@@ -67,90 +55,145 @@ export default function Register() {
     setError("");
     setSuccess("");
 
-    // Name
+    // -------------------------------------------------
+    // NAME VALIDATION
+    // -------------------------------------------------
+
     if (!name.trim()) {
-      setError(
-        "Please enter your full name."
-      );
+      setError("Please enter your full name.");
       return;
     }
 
-    // Email
+    // -------------------------------------------------
+    // EMAIL VALIDATION
+    // -------------------------------------------------
+
     if (!email.trim()) {
-      setError(
-        "Please enter your email address."
-      );
+      setError("Please enter your email address.");
       return;
     }
 
-    // Password
+    // -------------------------------------------------
+    // PHONE VALIDATION
+    // -------------------------------------------------
+
+    if (!phone.trim()) {
+      setError("Please enter your phone number.");
+      return;
+    }
+
+    // -------------------------------------------------
+    // ORGANIZATION VALIDATION
+    // -------------------------------------------------
+
+    if (!organization.trim()) {
+      setError("Please enter your organisation name.");
+      return;
+    }
+
+    // -------------------------------------------------
+    // PASSWORD VALIDATION
+    // -------------------------------------------------
+
     if (password.length < 6) {
-      setError(
-        "Password must contain at least 6 characters."
-      );
+      setError("Password must contain at least 6 characters.");
       return;
     }
 
-    // Confirm password
+    // -------------------------------------------------
+    // CONFIRM PASSWORD
+    // -------------------------------------------------
+
     if (password !== confirmPassword) {
-      setError(
-        "Passwords do not match."
-      );
+      setError("Passwords do not match.");
       return;
     }
 
     try {
       setLoading(true);
 
+      // =================================================
+      // IMPORTANT:
+      // Flask /register expects:
+      //
+      // {
+      //   oldUserData,
+      //   newUserData,
+      //   adminRegistration
+      // }
+      //
+      // =================================================
+
       const result = await register({
-        name,
-        email,
-        phone,
-        password,
-        role,
+        oldUserData: {},
+
+        newUserData: {
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          phone: phone.trim(),
+          organization: organization.trim(),
+          password: password,
+        },
+
+        // All accounts created through this page
+        // are admin registrations.
+        adminRegistration: true,
       });
 
-      console.log(
-        "Register result:",
-        result
-      );
+      console.log("Register result:", result);
 
-      if (!result.success) {
+      // -------------------------------------------------
+      // REGISTRATION FAILED
+      // -------------------------------------------------
+
+      if (!result || !result.success) {
         setError(
-          result.message ||
-            "Unable to create account."
+          result?.msg ||
+          result?.message ||
+          "Unable to create account."
         );
+
         return;
       }
 
+      // -------------------------------------------------
+      // REGISTRATION SUCCESS
+      // -------------------------------------------------
+
       setSuccess(
+        result.msg ||
         result.message ||
-          "Account created successfully."
+        "Admin account created successfully."
       );
 
-      // Clear form
+      // -------------------------------------------------
+      // CLEAR FORM
+      // -------------------------------------------------
+
       setName("");
       setEmail("");
       setPhone("");
+      setOrganization("");
       setPassword("");
       setConfirmPassword("");
-      setRole("officer");
 
-      // Go to login
+      // -------------------------------------------------
+      // GO TO LOGIN
+      // -------------------------------------------------
+
       setTimeout(() => {
         navigate("/login", {
           replace: true,
         });
       }, 1200);
+
     } catch (error) {
-      console.error(
-        "Registration error:",
-        error
-      );
+      console.error("Registration error:", error);
 
       setError(
         "Unable to connect to registration server."
       );
+
     } finally {
       setLoading(false);
     }
@@ -176,9 +219,7 @@ export default function Register() {
             <div className="flex items-center gap-3">
 
               <div className="w-11 h-11 bg-[#1677b8] rounded-lg flex items-center justify-center">
-
                 <ShieldCheck size={25} />
-
               </div>
 
               <div>
@@ -200,7 +241,7 @@ export default function Register() {
           <div>
 
             <p className="text-xs text-[#3ba3dd] font-semibold tracking-[2px] mb-3">
-              USER REGISTRATION
+              ADMIN REGISTRATION
             </p>
 
             <h2 className="text-4xl font-bold leading-tight">
@@ -236,7 +277,7 @@ export default function Register() {
             <div className="mb-7">
 
               <p className="text-xs font-bold tracking-[1.5px] text-[#1677b8]">
-                NEW ACCOUNT
+                NEW ADMIN ACCOUNT
               </p>
 
               <h2 className="text-3xl font-bold text-[#17212b] mt-2">
@@ -244,7 +285,7 @@ export default function Register() {
               </h2>
 
               <p className="text-sm text-slate-500 mt-2">
-                Register your PramaanAI account.
+                Create your secure PramaanAI administrator account.
               </p>
 
             </div>
@@ -294,11 +335,11 @@ export default function Register() {
                   FULL NAME
                 </label>
 
-                <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8]">
+                <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8] focus-within:ring-1 focus-within:ring-[#1677b8]/20 transition">
 
                   <User
                     size={17}
-                    className="text-slate-400"
+                    className="text-slate-400 shrink-0"
                   />
 
                   <input
@@ -325,11 +366,11 @@ export default function Register() {
                   EMAIL ADDRESS
                 </label>
 
-                <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8]">
+                <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8] focus-within:ring-1 focus-within:ring-[#1677b8]/20 transition">
 
                   <Mail
                     size={17}
-                    className="text-slate-400"
+                    className="text-slate-400 shrink-0"
                   />
 
                   <input
@@ -356,14 +397,15 @@ export default function Register() {
                   PHONE NUMBER
                 </label>
 
-                <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8]">
+                <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8] focus-within:ring-1 focus-within:ring-[#1677b8]/20 transition">
 
                   <Phone
                     size={17}
-                    className="text-slate-400"
+                    className="text-slate-400 shrink-0"
                   />
 
                   <input
+                    required
                     type="tel"
                     value={phone}
                     onChange={(e) =>
@@ -378,31 +420,34 @@ export default function Register() {
 
               </div>
 
-              {/* ROLE */}
+              {/* ORGANIZATION */}
 
               <div>
 
                 <label className="text-xs font-semibold text-slate-600">
-                  ACCOUNT ROLE
+                  ORGANISATION NAME
                 </label>
 
-                <select
-                  value={role}
-                  onChange={(e) =>
-                    setRole(e.target.value)
-                  }
-                  className="mt-2 w-full h-11 border border-slate-300 rounded-md px-3 text-sm outline-none focus:border-[#1677b8]"
-                >
+                <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8] focus-within:ring-1 focus-within:ring-[#1677b8]/20 transition">
 
-                  <option value="officer">
-                    Security Officer
-                  </option>
+                  <ShieldCheck
+                    size={17}
+                    className="text-slate-400 shrink-0"
+                  />
 
-                  <option value="admin">
-                    System Administrator
-                  </option>
+                  <input
+                    required
+                    type="text"
+                    value={organization}
+                    onChange={(e) =>
+                      setOrganization(e.target.value)
+                    }
+                    placeholder="Enter your organisation name"
+                    className="w-full ml-3 outline-none text-sm text-slate-800"
+                    autoComplete="organization"
+                  />
 
-                </select>
+                </div>
 
               </div>
 
@@ -414,11 +459,11 @@ export default function Register() {
                   PASSWORD
                 </label>
 
-                <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8]">
+                <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8] focus-within:ring-1 focus-within:ring-[#1677b8]/20 transition">
 
                   <LockKeyhole
                     size={17}
-                    className="text-slate-400"
+                    className="text-slate-400 shrink-0"
                   />
 
                   <input
@@ -441,19 +486,16 @@ export default function Register() {
                     type="button"
                     onClick={() =>
                       setShowPassword(
-                        (previous) =>
-                          !previous
+                        (previous) => !previous
                       )
                     }
-                    className="text-slate-400 hover:text-slate-600"
+                    className="text-slate-400 hover:text-slate-600 transition"
                   >
-
                     {showPassword ? (
                       <EyeOff size={17} />
                     ) : (
                       <Eye size={17} />
                     )}
-
                   </button>
 
                 </div>
@@ -468,11 +510,11 @@ export default function Register() {
                   CONFIRM PASSWORD
                 </label>
 
-                <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8]">
+                <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8] focus-within:ring-1 focus-within:ring-[#1677b8]/20 transition">
 
                   <LockKeyhole
                     size={17}
-                    className="text-slate-400"
+                    className="text-slate-400 shrink-0"
                   />
 
                   <input
@@ -497,19 +539,16 @@ export default function Register() {
                     type="button"
                     onClick={() =>
                       setShowConfirmPassword(
-                        (previous) =>
-                          !previous
+                        (previous) => !previous
                       )
                     }
-                    className="text-slate-400 hover:text-slate-600"
+                    className="text-slate-400 hover:text-slate-600 transition"
                   >
-
                     {showConfirmPassword ? (
                       <EyeOff size={17} />
                     ) : (
                       <Eye size={17} />
                     )}
-
                   </button>
 
                 </div>
@@ -521,7 +560,7 @@ export default function Register() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-11 bg-[#1677b8] hover:bg-[#12679f] text-white rounded-md font-semibold text-sm flex items-center justify-center gap-2 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full h-11 bg-[#1677b8] hover:bg-[#12679f] text-white rounded-md font-semibold text-sm flex items-center justify-center gap-2 transition disabled:opacity-60 disabled:cursor-not-allowed mt-2"
               >
 
                 {loading
@@ -564,11 +603,9 @@ export default function Register() {
               </p>
 
               <p className="mt-2 text-xs text-slate-500 leading-5">
-                Your password is converted to a
-                SHA-256 hash before being sent to
-                the PramaanAI backend. The original
-                password is never sent to the
-                registration endpoint.
+                Your password is securely handled by
+                the PramaanAI backend during account
+                registration.
               </p>
 
             </div>

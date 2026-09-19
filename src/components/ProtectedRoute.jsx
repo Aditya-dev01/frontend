@@ -1,15 +1,13 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-export default function ProtectedRoute({
-  allowedRoles = [],
-}) {
+export default function ProtectedRoute() {
   const {
     isAuthenticated,
     loading,
-    user,
   } = useAuth();
 
+  // While authentication is being checked
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#f4f7fa]">
@@ -20,7 +18,7 @@ export default function ProtectedRoute({
     );
   }
 
-  // No token / invalid token
+  // User is not logged in
   if (!isAuthenticated) {
     return (
       <Navigate
@@ -30,28 +28,6 @@ export default function ProtectedRoute({
     );
   }
 
-  // Role authorization
-  if (
-    allowedRoles.length > 0 &&
-    !allowedRoles.includes(user?.role)
-  ) {
-    if (user?.role === "admin" ||
-        user?.role === "officer") {
-      return (
-        <Navigate
-          to="/dashboard"
-          replace
-        />
-      );
-    }
-
-    return (
-      <Navigate
-        to="/login"
-        replace
-      />
-    );
-  }
-
+  // User is authenticated
   return <Outlet />;
 }
