@@ -1,5 +1,3 @@
-// import dotenv from 'dotenv';
-// dotenv.config();
 import {
   createContext,
   useContext,
@@ -9,9 +7,17 @@ import {
 
 const AuthContext = createContext(null);
 
+// =====================================================
+// API CONFIG
+// =====================================================
+
+// Local Flask backend
 // const API_URL = "http://127.0.0.1:5000";
-// const API_URL = import.meta.env.BACKEND_URL;
-const API_URL = "https://hackathon-backend-0eoj.onrender.com";
+
+// Render backend
+const API_URL =
+  "https://hackathon-backend-0eoj.onrender.com";
+
 const TOKEN_KEY = "pramaanai_token";
 const USER_KEY = "pramaanai_user";
 
@@ -21,6 +27,7 @@ const USER_KEY = "pramaanai_user";
 
 const sha256 = async (text) => {
   const encoder = new TextEncoder();
+
   const data = encoder.encode(text);
 
   const hashBuffer = await crypto.subtle.digest(
@@ -65,12 +72,18 @@ export const AuthProvider = ({ children }) => {
   // ===================================================
 
   const verifyAuthentication = async () => {
-    const savedToken = localStorage.getItem(TOKEN_KEY);
+    const savedToken =
+      localStorage.getItem(TOKEN_KEY);
+
+    // -----------------------------------------------
+    // No token
+    // -----------------------------------------------
 
     if (!savedToken) {
       setToken(null);
       setUser(null);
       setLoading(false);
+
       return false;
     }
 
@@ -79,44 +92,75 @@ export const AuthProvider = ({ children }) => {
         `${API_URL}/verifyToken`,
         {
           method: "POST",
+
           headers: {
             Authorization: `Bearer ${savedToken}`,
-            "Content-Type": "application/json",
           },
         }
       );
 
-      const data = await response.json();
+      let data;
 
-      console.log("Token verification:", data);
-
-      if (!response.ok || !data.success) {
+      try {
+        data = await response.json();
+      } catch {
         logout();
+
         return false;
       }
 
+      console.log(
+        "Token verification:",
+        data
+      );
+
+      // -----------------------------------------------
+      // Invalid token
+      // -----------------------------------------------
+
+      if (
+        !response.ok ||
+        !data.success
+      ) {
+        logout();
+
+        return false;
+      }
+
+      // -----------------------------------------------
+      // Valid token
+      // -----------------------------------------------
+
       setToken(savedToken);
+
+      // -----------------------------------------------
+      // Restore saved user
+      // -----------------------------------------------
 
       const savedUser =
         localStorage.getItem(USER_KEY);
 
       if (savedUser) {
         try {
-          setUser(JSON.parse(savedUser));
+          setUser(
+            JSON.parse(savedUser)
+          );
         } catch {
-          localStorage.removeItem(USER_KEY);
+          localStorage.removeItem(
+            USER_KEY
+          );
+
           setUser(null);
         }
-      } else if (data.details?.user) {
-        setUser(data.details.user);
+      } else {
+        // Backend /verifyToken does not return
+        // user information.
 
-        localStorage.setItem(
-          USER_KEY,
-          JSON.stringify(data.details.user)
-        );
+        setUser(null);
       }
 
       return true;
+
     } catch (error) {
       console.error(
         "Token verification failed:",
@@ -124,7 +168,9 @@ export const AuthProvider = ({ children }) => {
       );
 
       logout();
+
       return false;
+
     } finally {
       setLoading(false);
     }
@@ -144,16 +190,53 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (
     email,
-    password,
-    role
+    password
   ) => {
     try {
+      // -----------------------------------------------
+      // Validate input
+      // -----------------------------------------------
+
+      if (!email?.trim()) {
+        return {
+          success: false,
+          message: "Email is required.",
+        };
+      }
+
+      if (!password) {
+        return {
+          success: false,
+          message: "Password is required.",
+        };
+      }
+
+      // -----------------------------------------------
+      // Clean email
+      // -----------------------------------------------
+
       const cleanedEmail =
         email.trim().toLowerCase();
 
-      // Hash password before sending
+      // -----------------------------------------------
+      // Hash password
+      // -----------------------------------------------
+
       const passwordHash =
         await sha256(password);
+
+      // -----------------------------------------------
+      // LOGIN REQUEST
+      //
+      // Backend expects:
+      //
+      // {
+      //   email,
+      //   password
+      // }
+      //
+      // DO NOT SEND role.
+      // -----------------------------------------------
 
       const response = await fetch(
         `${API_URL}/login`,
@@ -161,37 +244,68 @@ export const AuthProvider = ({ children }) => {
           method: "POST",
 
           headers: {
-            "Content-Type": "application/json",
+            "Content-Type":
+              "application/json",
           },
 
           body: JSON.stringify({
             email: cleanedEmail,
             password: passwordHash,
-            role,
           }),
         }
       );
 
-      const data = await response.json();
+      let data;
 
-      console.log("Login response:", data);
+      try {
+        data = await response.json();
+      } catch {
+        return {
+          success: false,
+          message:
+            "Server returned an invalid response.",
+        };
+      }
 
-      console.log(data.success);
-      if ( !data.success) {
+      console.log(
+        "Login response:",
+        data
+      );
+
+      // -----------------------------------------------
+      // LOGIN FAILED
+      // -----------------------------------------------
+
+      if (
+        !response.ok ||
+        !data.success
+      ) {
         return {
           success: false,
           message:
             data.msg ||
             data.message ||
-            "Login failed.",
+            "Invalid email or password.",
+          details:
+            data.details || {},
         };
       }
 
-      // Backend returns token in details.token
+      // -----------------------------------------------
+      // GET JWT
+      //
+      // Backend:
+      //
+      // details: {
+      //   email,
+      //   password,
+      //   token
+      // }
+      // -----------------------------------------------
+
       const authToken =
         data.details?.token;
 
-        console.log(authToken);
       if (!authToken) {
         return {
           success: false,
@@ -200,35 +314,55 @@ export const AuthProvider = ({ children }) => {
         };
       }
 
-      /*
-       * Your current backend does not return
-       * details.user.
-       *
-       * Therefore create the frontend user
-       * from the successful login information.
-       */
+      // -----------------------------------------------
+      // CREATE FRONTEND USER
+      //
+      // Current backend does NOT return:
+      // name
+      // phone
+      // organization
+      // role
+      //
+      // Therefore only store the email.
+      // -----------------------------------------------
 
       const userData = {
         email: cleanedEmail,
-        role: role,
       };
 
-      console.log(authToken);
-      // Save JWT
+      // -----------------------------------------------
+      // SAVE TOKEN
+      // -----------------------------------------------
+
       localStorage.setItem(
         TOKEN_KEY,
         authToken
       );
 
-      // Save user
+      // -----------------------------------------------
+      // SAVE USER
+      // -----------------------------------------------
+
       localStorage.setItem(
         USER_KEY,
         JSON.stringify(userData)
       );
 
-      // Update React state
+      // -----------------------------------------------
+      // UPDATE STATE
+      // -----------------------------------------------
+
       setToken(authToken);
       setUser(userData);
+
+      console.log(
+        "Authenticated user:",
+        userData
+      );
+
+      // -----------------------------------------------
+      // RETURN SUCCESS
+      // -----------------------------------------------
 
       return {
         success: true,
@@ -238,6 +372,7 @@ export const AuthProvider = ({ children }) => {
           data.msg ||
           "Login successful.",
       };
+
     } catch (error) {
       console.error(
         "Login error:",
@@ -247,7 +382,7 @@ export const AuthProvider = ({ children }) => {
       return {
         success: false,
         message:
-          "Unable to connect to backend. Make sure Flask is running.",
+          "Unable to connect to backend. Make sure the Flask server is running.",
       };
     }
   };
@@ -256,105 +391,248 @@ export const AuthProvider = ({ children }) => {
   // REGISTER
   // ===================================================
 
+  /*
+   * Backend /register expects:
+   *
+   * {
+   *   oldUserData,
+   *   newUserData,
+   *   adminRegistration
+   * }
+   *
+   * app.py:
+   *
+   * checkDictShape(
+   *   data,
+   *   {
+   *     "oldUserData",
+   *     "newUserData",
+   *     "adminRegistration"
+   *   }
+   * )
+   *
+   * Then:
+   *
+   * createUser(
+   *   oldUserData=data["oldUserData"],
+   *   newUserData=data["newUserData"],
+   *   admin_registration=data["adminRegistration"]
+   * )
+   */
+
   const register = async ({
-    name,
-    email,
-    phone,
-    password,
-    role,
+  oldUserData = {},
+  newUserData = {},
+  adminRegistration = true,
   }) => {
-    try {
-      const cleanedName =
-        name.trim();
+  try {
+    // -----------------------------------------------
+    // GET USER DATA
+    // -----------------------------------------------
 
-      const cleanedEmail =
-        email.trim().toLowerCase();
+    const {
+      name,
+      email,
+      phone,
+      organization,
+      password,
+    } = newUserData;
 
-      // Backend supports officer/admin.
-      const finalRole =
-        role === "admin"
-          ? "admin"
-          : "officer";
+    // -----------------------------------------------
+    // VALIDATE
+    // -----------------------------------------------
 
-      // Hash password before sending
-      const passwordHash =
-        await sha256(password);
-
-      const response = await fetch(
-        `${API_URL}/register`,
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type": "application/json",
-          },
-
-          body: JSON.stringify({
-            name: cleanedName,
-            email: cleanedEmail,
-            phone: phone?.trim() || "",
-            password: passwordHash,
-            role: finalRole,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      console.log(
-        "Registration response:",
-        data
-      );
-
-      if (!response.ok || !data.success) {
-        return {
-          success: false,
-          message:
-            data.msg ||
-            data.message ||
-            "Registration failed.",
-        };
-      }
-
-      /*
-       * Registration does NOT create a JWT.
-       *
-       * User must login after registration.
-       */
-
+    if (!name?.trim()) {
       return {
-        success: true,
-        message:
-          data.msg ||
-          "User has been created.",
+        success: false,
+        message: "Name is required.",
       };
-    } catch (error) {
-      console.error(
-        "Registration error:",
-        error
-      );
+    }
 
+    if (!email?.trim()) {
+      return {
+        success: false,
+        message: "Email is required.",
+      };
+    }
+
+    if (!phone?.trim()) {
+      return {
+        success: false,
+        message: "Phone number is required.",
+      };
+    }
+
+    if (!organization?.trim()) {
+      return {
+        success: false,
+        message: "Organization is required.",
+      };
+    }
+
+    if (!password) {
+      return {
+        success: false,
+        message: "Password is required.",
+      };
+    }
+
+    // -----------------------------------------------
+    // CLEAN VALUES
+    // -----------------------------------------------
+
+    const cleanedName = name.trim();
+
+    const cleanedEmail =
+      email.trim().toLowerCase();
+
+    const cleanedPhone =
+      phone.trim();
+
+    const cleanedOrganization =
+      organization.trim();
+
+    // -----------------------------------------------
+    // HASH PASSWORD
+    // -----------------------------------------------
+
+    const passwordHash =
+      await sha256(password);
+
+    // -----------------------------------------------
+    // CREATE NEW USER DATA
+    // -----------------------------------------------
+
+    const cleanedNewUserData = {
+      name: cleanedName,
+      email: cleanedEmail,
+      phone: cleanedPhone,
+      organization: cleanedOrganization,
+      password: passwordHash,
+    };
+
+    // -----------------------------------------------
+    // FINAL REGISTER PAYLOAD
+    // -----------------------------------------------
+
+    const payload = {
+      oldUserData,
+      newUserData: cleanedNewUserData,
+      adminRegistration,
+    };
+
+    console.log(
+      "Registration payload:",
+      {
+        ...payload,
+        newUserData: {
+          ...cleanedNewUserData,
+          password: "[SHA-256 HASH]",
+        },
+      }
+    );
+
+    // -----------------------------------------------
+    // REGISTER REQUEST
+    // -----------------------------------------------
+
+    const response = await fetch(
+      `${API_URL}/register`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+        },
+
+        body: JSON.stringify(payload),
+      }
+    );
+
+    // -----------------------------------------------
+    // PARSE RESPONSE
+    // -----------------------------------------------
+
+    let data;
+
+    try {
+      data = await response.json();
+    } catch {
       return {
         success: false,
         message:
-          "Unable to connect to backend. Make sure Flask is running.",
+          "Server returned an invalid response.",
       };
     }
-  };
+
+    console.log(
+      "Registration response:",
+      data
+    );
+
+    // -----------------------------------------------
+    // REGISTRATION FAILED
+    // -----------------------------------------------
+
+    if (
+      !response.ok ||
+      !data.success
+    ) {
+      return {
+        success: false,
+        message:
+          data.msg ||
+          data.message ||
+          "Registration failed.",
+
+        details:
+          data.details || {},
+      };
+    }
+
+    // -----------------------------------------------
+    // REGISTRATION SUCCESSFUL
+    // -----------------------------------------------
+
+    return {
+      success: true,
+
+      message:
+        data.msg ||
+        "Registration successful.",
+
+      details:
+        data.details || {},
+    };
+
+  } catch (error) {
+    console.error(
+      "Registration error:",
+      error
+    );
+
+    return {
+      success: false,
+      message:
+        "Unable to connect to backend. Make sure the Flask server is running.",
+    };
+  }
+};
+
 
   // ===================================================
   // AUTHENTICATED FETCH
   // ===================================================
 
   /*
-   * Use this function for every protected API request.
+   * Used for protected APIs:
    *
-   * Example:
+   * /ocr
+   * /audit_log
    *
-   * const response = await authFetch("/ocr", {
-   *   method: "POST",
-   *   body: formData
-   * });
+   * Automatically adds:
+   *
+   * Authorization: Bearer <JWT>
    */
 
   const authFetch = async (
@@ -362,7 +640,13 @@ export const AuthProvider = ({ children }) => {
     options = {}
   ) => {
     const savedToken =
-      localStorage.getItem(TOKEN_KEY);
+      localStorage.getItem(
+        TOKEN_KEY
+      );
+
+    // -----------------------------------------------
+    // No token
+    // -----------------------------------------------
 
     if (!savedToken) {
       logout();
@@ -372,15 +656,19 @@ export const AuthProvider = ({ children }) => {
       );
     }
 
+    // -----------------------------------------------
+    // Headers
+    // -----------------------------------------------
+
     const headers = {
       ...(options.headers || {}),
-      Authorization: `Bearer ${savedToken}`,
+      Authorization:
+        `Bearer ${savedToken}`,
     };
 
-    /*
-     * Do not force Content-Type for FormData.
-     * Browser must set multipart/form-data boundary.
-     */
+    // -----------------------------------------------
+    // Do NOT set Content-Type for FormData
+    // -----------------------------------------------
 
     if (
       !(options.body instanceof FormData) &&
@@ -389,6 +677,10 @@ export const AuthProvider = ({ children }) => {
       headers["Content-Type"] =
         "application/json";
     }
+
+    // -----------------------------------------------
+    // Request
+    // -----------------------------------------------
 
     const response = await fetch(
       endpoint.startsWith("http")
@@ -400,10 +692,9 @@ export const AuthProvider = ({ children }) => {
       }
     );
 
-    /*
-     * If backend rejects the token,
-     * automatically logout.
-     */
+    // -----------------------------------------------
+    // Invalid / expired JWT
+    // -----------------------------------------------
 
     if (
       response.status === 401 ||
@@ -416,25 +707,255 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ===================================================
+  // OCR UPLOAD
+  // ===================================================
+
+  /*
+   * Convenience function for /ocr.
+   *
+   * Usage:
+   *
+   * const result = await uploadOCR(imageFile);
+   */
+
+  const uploadOCR = async (imageFile) => {
+    try {
+      if (!imageFile) {
+        return {
+          success: false,
+          message:
+            "Please select an image.",
+        };
+      }
+
+      const formData =
+        new FormData();
+
+      formData.append(
+        "image",
+        imageFile
+      );
+
+      const response =
+        await authFetch(
+          "/ocr",
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+
+      let data;
+
+      try {
+        data =
+          await response.json();
+      } catch {
+        return {
+          success: false,
+          message:
+            "Server returned an invalid response.",
+        };
+      }
+
+      console.log(
+        "OCR response:",
+        data
+      );
+
+      if (
+        !response.ok ||
+        !data.success
+      ) {
+        return {
+          success: false,
+          message:
+            data.msg ||
+            data.message ||
+            "OCR processing failed.",
+          details:
+            data.details || {},
+        };
+      }
+
+      return {
+        success: true,
+        message:
+          data.msg ||
+          "OCR completed successfully.",
+        details:
+          data.details || {},
+      };
+
+    } catch (error) {
+      console.error(
+        "OCR error:",
+        error
+      );
+
+      return {
+        success: false,
+        message:
+          error.message ||
+          "Unable to process OCR.",
+      };
+    }
+  };
+
+  // ===================================================
+  // AUDIT LOG
+  // ===================================================
+
+  /*
+   * Backend:
+   *
+   * POST /audit_log
+   *
+   * Optional JSON:
+   *
+   * {
+   *   limit,
+   *   offset
+   * }
+   */
+
+  const getAuditLogs = async ({
+    limit,
+    offset,
+  } = {}) => {
+    try {
+      const response =
+        await authFetch(
+          "/audit_log",
+          {
+            method: "POST",
+
+            body: JSON.stringify({
+              limit:
+                limit ?? null,
+              offset:
+                offset ?? null,
+            }),
+          }
+        );
+
+      let data;
+
+      try {
+        data =
+          await response.json();
+      } catch {
+        return {
+          success: false,
+          message:
+            "Server returned an invalid response.",
+        };
+      }
+
+      console.log(
+        "Audit log response:",
+        data
+      );
+
+      if (
+        !response.ok ||
+        !data.success
+      ) {
+        return {
+          success: false,
+          message:
+            data.msg ||
+            data.message ||
+            "Could not fetch audit logs.",
+          details:
+            data.details || {},
+        };
+      }
+
+      return {
+        success: true,
+        message:
+          data.msg ||
+          "Audit logs fetched successfully.",
+        details:
+          data.details || [],
+      };
+
+    } catch (error) {
+      console.error(
+        "Audit log error:",
+        error
+      );
+
+      return {
+        success: false,
+        message:
+          error.message ||
+          "Unable to fetch audit logs.",
+      };
+    }
+  };
+
+  // ===================================================
   // CONTEXT
   // ===================================================
 
   return (
     <AuthContext.Provider
       value={{
+        // -------------------------------------------
+        // State
+        // -------------------------------------------
+
         user,
         token,
         loading,
 
-        login,
-        register,
-        logout,
+        // -------------------------------------------
+        // Authentication
+        // -------------------------------------------
 
+        login,
+        logout,
         verifyAuthentication,
+
+        // -------------------------------------------
+        // Registration
+        // -------------------------------------------
+
+        register,
+
+        // -------------------------------------------
+        // Protected API
+        // -------------------------------------------
+
         authFetch,
 
+        // -------------------------------------------
+        // OCR
+        // -------------------------------------------
+
+        uploadOCR,
+
+        // -------------------------------------------
+        // Audit logs
+        // -------------------------------------------
+
+        getAuditLogs,
+
+        // -------------------------------------------
+        // Authentication state
+        // -------------------------------------------
+
         isAuthenticated:
-          Boolean(user && token),
+          Boolean(token),
+
+        // -------------------------------------------
+        // Current backend does NOT return role
+        // -------------------------------------------
+
+        isAdmin: false,
+        isOfficer: false,
       }}
     >
       {children}
