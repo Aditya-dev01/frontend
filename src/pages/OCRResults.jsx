@@ -300,11 +300,11 @@ export default function OCRResults() {
 
       <div>
 
-        <h1 className="text-2xl font-bold text-white">
+        <h1 className="text-2xl font-bold text-black">
           OCR Extraction Results
         </h1>
 
-        <p className="text-slate-400 mt-1">
+        <p className="text-black-400 mt-1">
           Information extracted from the uploaded document
         </p>
 

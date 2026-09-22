@@ -311,7 +311,7 @@ export default function VerificationResult() {
           </div>
 
 
-          <h1 className="text-2xl font-bold text-white">
+          <h1 className="text-2xl font-bold text-black">
 
             AI Verification Result
 
@@ -394,7 +394,7 @@ export default function VerificationResult() {
               </p>
 
 
-              <h2 className="text-3xl md:text-4xl font-bold text-white mt-1">
+              <h2 className="text-3xl md:text-4xl font-bold text-black mt-1">
 
                 {isTampered
                   ? "TAMPERING DETECTED"
@@ -867,7 +867,7 @@ export default function VerificationResult() {
           onClick={() =>
             navigate("/screening/new")
           }
-          className="border border-slate-700 hover:border-slate-500 text-white px-6 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition"
+          className="border border-slate-700 hover:border-slate-500 text-black px-6 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition"
         >
 
           <ArrowLeft size={18} />

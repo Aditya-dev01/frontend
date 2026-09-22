@@ -68,6 +68,61 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ===================================================
+  // NORMALIZE USER
+  // ===================================================
+
+  const normalizeUser = (data) => {
+    /*
+      Backend may return user in any of these:
+
+      data.details.user
+      data.user
+      data.details
+
+      Expected user:
+
+      {
+        email,
+        name,
+        phone,
+        organization,
+        role
+      }
+    */
+
+    const backendUser =
+      data?.details?.user ||
+      data?.user ||
+      data?.details;
+
+    if (
+      !backendUser ||
+      typeof backendUser !== "object"
+    ) {
+      return null;
+    }
+
+    return {
+      email:
+        backendUser.email || "",
+
+      name:
+        backendUser.name || "",
+
+      phone:
+        backendUser.phone || "",
+
+      organization:
+        backendUser.organization || "",
+
+      role:
+        String(
+          backendUser.role || ""
+        ).toLowerCase(),
+    };
+  };
+
+  // ===================================================
   // VERIFY JWT
   // ===================================================
 
@@ -94,7 +149,8 @@ export const AuthProvider = ({ children }) => {
           method: "POST",
 
           headers: {
-            Authorization: `Bearer ${savedToken}`,
+            Authorization:
+              `Bearer ${savedToken}`,
           },
         }
       );
@@ -115,7 +171,7 @@ export const AuthProvider = ({ children }) => {
       );
 
       // -----------------------------------------------
-      // Invalid token
+      // INVALID TOKEN
       // -----------------------------------------------
 
       if (
@@ -128,13 +184,13 @@ export const AuthProvider = ({ children }) => {
       }
 
       // -----------------------------------------------
-      // Valid token
+      // VALID TOKEN
       // -----------------------------------------------
 
       setToken(savedToken);
 
       // -----------------------------------------------
-      // Restore saved user
+      // RESTORE USER
       // -----------------------------------------------
 
       const savedUser =
@@ -142,10 +198,22 @@ export const AuthProvider = ({ children }) => {
 
       if (savedUser) {
         try {
-          setUser(
-            JSON.parse(savedUser)
+          const parsedUser =
+            JSON.parse(savedUser);
+
+          setUser(parsedUser);
+
+          console.log(
+            "Restored user:",
+            parsedUser
           );
-        } catch {
+
+        } catch (error) {
+          console.error(
+            "Invalid saved user:",
+            error
+          );
+
           localStorage.removeItem(
             USER_KEY
           );
@@ -153,9 +221,6 @@ export const AuthProvider = ({ children }) => {
           setUser(null);
         }
       } else {
-        // Backend /verifyToken does not return
-        // user information.
-
         setUser(null);
       }
 
@@ -177,7 +242,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ===================================================
-  // VERIFY TOKEN WHEN APPLICATION LOADS
+  // VERIFY TOKEN WHEN APP LOADS
   // ===================================================
 
   useEffect(() => {
@@ -194,7 +259,7 @@ export const AuthProvider = ({ children }) => {
   ) => {
     try {
       // -----------------------------------------------
-      // Validate input
+      // VALIDATION
       // -----------------------------------------------
 
       if (!email?.trim()) {
@@ -212,14 +277,14 @@ export const AuthProvider = ({ children }) => {
       }
 
       // -----------------------------------------------
-      // Clean email
+      // CLEAN EMAIL
       // -----------------------------------------------
 
       const cleanedEmail =
         email.trim().toLowerCase();
 
       // -----------------------------------------------
-      // Hash password
+      // HASH PASSWORD
       // -----------------------------------------------
 
       const passwordHash =
@@ -227,15 +292,6 @@ export const AuthProvider = ({ children }) => {
 
       // -----------------------------------------------
       // LOGIN REQUEST
-      //
-      // Backend expects:
-      //
-      // {
-      //   email,
-      //   password
-      // }
-      //
-      // DO NOT SEND role.
       // -----------------------------------------------
 
       const response = await fetch(
@@ -282,10 +338,12 @@ export const AuthProvider = ({ children }) => {
       ) {
         return {
           success: false,
+
           message:
             data.msg ||
             data.message ||
             "Invalid email or password.",
+
           details:
             data.details || {},
         };
@@ -293,18 +351,11 @@ export const AuthProvider = ({ children }) => {
 
       // -----------------------------------------------
       // GET JWT
-      //
-      // Backend:
-      //
-      // details: {
-      //   email,
-      //   password,
-      //   token
-      // }
       // -----------------------------------------------
 
       const authToken =
-        data.details?.token;
+        data.details?.token ||
+        data.token;
 
       if (!authToken) {
         return {
@@ -315,20 +366,55 @@ export const AuthProvider = ({ children }) => {
       }
 
       // -----------------------------------------------
-      // CREATE FRONTEND USER
-      //
-      // Current backend does NOT return:
-      // name
-      // phone
-      // organization
-      // role
-      //
-      // Therefore only store the email.
+      // GET USER DATA
       // -----------------------------------------------
 
-      const userData = {
-        email: cleanedEmail,
-      };
+      const backendUser =
+        normalizeUser(data);
+
+      // -----------------------------------------------
+      // FALLBACK USER
+      // -----------------------------------------------
+
+      const userData =
+        backendUser || {
+          email:
+            data.details?.email ||
+            data.email ||
+            cleanedEmail,
+
+          name:
+            data.details?.name ||
+            data.name ||
+            "",
+
+          phone:
+            data.details?.phone ||
+            data.phone ||
+            "",
+
+          organization:
+            data.details?.organization ||
+            data.organization ||
+            "",
+
+          role:
+            String(
+              data.details?.role ||
+              data.role ||
+              ""
+            ).toLowerCase(),
+        };
+
+      console.log(
+        "Authenticated user:",
+        userData
+      );
+
+      console.log(
+        "Authenticated role:",
+        userData.role
+      );
 
       // -----------------------------------------------
       // SAVE TOKEN
@@ -355,19 +441,17 @@ export const AuthProvider = ({ children }) => {
       setToken(authToken);
       setUser(userData);
 
-      console.log(
-        "Authenticated user:",
-        userData
-      );
-
       // -----------------------------------------------
-      // RETURN SUCCESS
+      // LOGIN SUCCESS
       // -----------------------------------------------
 
       return {
         success: true,
+
         token: authToken,
+
         user: userData,
+
         message:
           data.msg ||
           "Login successful.",
@@ -390,250 +474,368 @@ export const AuthProvider = ({ children }) => {
   // ===================================================
   // REGISTER
   // ===================================================
-
-  /*
-   * Backend /register expects:
-   *
-   * {
-   *   oldUserData,
-   *   newUserData,
-   *   adminRegistration
-   * }
-   *
-   * app.py:
-   *
-   * checkDictShape(
-   *   data,
-   *   {
-   *     "oldUserData",
-   *     "newUserData",
-   *     "adminRegistration"
-   *   }
-   * )
-   *
-   * Then:
-   *
-   * createUser(
-   *   oldUserData=data["oldUserData"],
-   *   newUserData=data["newUserData"],
-   *   admin_registration=data["adminRegistration"]
-   * )
-   */
+  //
+  // THIS FUNCTION SUPPORTS BOTH:
+  //
+  // 1. HOME PAGE ADMIN REGISTRATION
+  //
+  //    oldUserData = {}
+  //    newUserData = ADMIN
+  //    adminRegistration = true
+  //
+  //
+  // 2. ADMIN CREATE USER
+  //
+  //    oldUserData = LOGGED-IN ADMIN
+  //    newUserData = NEW USER
+  //    adminRegistration = false
+  //
+  // ===================================================
 
   const register = async ({
-  oldUserData = {},
-  newUserData = {},
-  adminRegistration = true,
+    oldUserData = null,
+    newUserData = {},
+    adminRegistration = true,
   }) => {
-  try {
-    // -----------------------------------------------
-    // GET USER DATA
-    // -----------------------------------------------
+    try {
+      // -----------------------------------------------
+      // GET NEW USER DATA
+      // -----------------------------------------------
 
-    const {
-      name,
-      email,
-      phone,
-      organization,
-      password,
-    } = newUserData;
+      const {
+        name,
+        email,
+        phone,
+        organization,
+        password,
+      } = newUserData;
 
-    // -----------------------------------------------
-    // VALIDATE
-    // -----------------------------------------------
+      // -----------------------------------------------
+      // VALIDATION
+      // -----------------------------------------------
 
-    if (!name?.trim()) {
-      return {
-        success: false,
-        message: "Name is required.",
+      if (!name?.trim()) {
+        return {
+          success: false,
+          message: "Name is required.",
+        };
+      }
+
+      if (!email?.trim()) {
+        return {
+          success: false,
+          message: "Email is required.",
+        };
+      }
+
+      if (!phone?.trim()) {
+        return {
+          success: false,
+          message: "Phone number is required.",
+        };
+      }
+
+      if (!organization?.trim()) {
+        return {
+          success: false,
+          message: "Organization is required.",
+        };
+      }
+
+      if (!password) {
+        return {
+          success: false,
+          message: "Password is required.",
+        };
+      }
+
+      // -----------------------------------------------
+      // CLEAN NEW USER DATA
+      // -----------------------------------------------
+
+      const cleanedNewUserData = {
+        name:
+          name.trim(),
+
+        email:
+          email.trim().toLowerCase(),
+
+        phone:
+          phone.trim(),
+
+        organization:
+          organization.trim(),
+
+        password:
+          await sha256(password),
       };
-    }
 
-    if (!email?.trim()) {
-      return {
-        success: false,
-        message: "Email is required.",
+      // =================================================
+      // HOME PAGE ADMIN REGISTRATION
+      // =================================================
+      //
+      // oldUserData MUST be {}
+      //
+      // newUserData = ADMIN
+      //
+      // adminRegistration = true
+      // =================================================
+
+      let cleanedOldUserData = {};
+
+      if (adminRegistration === true) {
+        cleanedOldUserData = {};
+      }
+
+      // =================================================
+      // ADMIN CREATE USER
+      // =================================================
+      //
+      // oldUserData = LOGGED-IN ADMIN
+      //
+      // newUserData = NEW USER
+      //
+      // adminRegistration = false
+      // =================================================
+
+      else {
+        // ---------------------------------------------
+        // ADMIN MUST BE LOGGED IN
+        // ---------------------------------------------
+
+        if (!user) {
+          return {
+            success: false,
+            message:
+              "You must be logged in to create a user.",
+          };
+        }
+
+        // ---------------------------------------------
+        // ONLY ADMIN CAN CREATE USER
+        // ---------------------------------------------
+
+        if (
+          String(user.role).toLowerCase() !==
+          "admin"
+        ) {
+          return {
+            success: false,
+            message:
+              "Only an admin can create users.",
+          };
+        }
+
+        // ---------------------------------------------
+        // OLD USER = LOGGED-IN ADMIN
+        // ---------------------------------------------
+
+        cleanedOldUserData = {
+          name:
+            user.name || "",
+
+          email:
+            user.email || "",
+
+          phone:
+            user.phone || "",
+
+          organization:
+            user.organization || "",
+
+          role:
+            "admin",
+        };
+      }
+
+      // =================================================
+      // FINAL PAYLOAD
+      // =================================================
+
+      const payload = {
+        oldUserData:
+          cleanedOldUserData,
+
+        newUserData:
+          cleanedNewUserData,
+
+        adminRegistration:
+          Boolean(adminRegistration),
       };
-    }
 
-    if (!phone?.trim()) {
-      return {
-        success: false,
-        message: "Phone number is required.",
-      };
-    }
+      // =================================================
+      // DEBUG PAYLOAD
+      // =================================================
 
-    if (!organization?.trim()) {
-      return {
-        success: false,
-        message: "Organization is required.",
-      };
-    }
+      console.log(
+        "===================================="
+      );
 
-    if (!password) {
-      return {
-        success: false,
-        message: "Password is required.",
-      };
-    }
+      console.log(
+        "REGISTER REQUEST"
+      );
 
-    // -----------------------------------------------
-    // CLEAN VALUES
-    // -----------------------------------------------
+      console.log(
+        "Admin Registration:",
+        adminRegistration
+      );
 
-    const cleanedName = name.trim();
+      console.log(
+        "Old User Data:",
+        cleanedOldUserData
+      );
 
-    const cleanedEmail =
-      email.trim().toLowerCase();
-
-    const cleanedPhone =
-      phone.trim();
-
-    const cleanedOrganization =
-      organization.trim();
-
-    // -----------------------------------------------
-    // HASH PASSWORD
-    // -----------------------------------------------
-
-    const passwordHash =
-      await sha256(password);
-
-    // -----------------------------------------------
-    // CREATE NEW USER DATA
-    // -----------------------------------------------
-
-    const cleanedNewUserData = {
-      name: cleanedName,
-      email: cleanedEmail,
-      phone: cleanedPhone,
-      organization: cleanedOrganization,
-      password: passwordHash,
-    };
-
-    // -----------------------------------------------
-    // FINAL REGISTER PAYLOAD
-    // -----------------------------------------------
-
-    const payload = {
-      oldUserData,
-      newUserData: cleanedNewUserData,
-      adminRegistration,
-    };
-
-    console.log(
-      "Registration payload:",
-      {
-        ...payload,
-        newUserData: {
+      console.log(
+        "New User Data:",
+        {
           ...cleanedNewUserData,
           password: "[SHA-256 HASH]",
-        },
+        }
+      );
+
+      console.log(
+        "Final Payload:",
+        {
+          ...payload,
+
+          newUserData: {
+            ...cleanedNewUserData,
+
+            password:
+              "[SHA-256 HASH]",
+          },
+        }
+      );
+
+      console.log(
+        "===================================="
+      );
+
+      // =================================================
+      // SEND REQUEST
+      // =================================================
+
+      let response;
+
+      // -----------------------------------------------
+      // HOME ADMIN REGISTRATION
+      // -----------------------------------------------
+
+      if (adminRegistration === true) {
+        response = await fetch(
+          `${API_URL}/register`,
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body:
+              JSON.stringify(payload),
+          }
+        );
       }
-    );
 
-    // -----------------------------------------------
-    // REGISTER REQUEST
-    // -----------------------------------------------
+      // -----------------------------------------------
+      // ADMIN CREATE USER
+      // -----------------------------------------------
 
-    const response = await fetch(
-      `${API_URL}/register`,
-      {
-        method: "POST",
+      else {
+        response = await authFetch(
+          "/register",
+          {
+            method: "POST",
 
-        headers: {
-          "Content-Type": "application/json",
-        },
-
-        body: JSON.stringify(payload),
+            body:
+              JSON.stringify(payload),
+          }
+        );
       }
-    );
 
-    // -----------------------------------------------
-    // PARSE RESPONSE
-    // -----------------------------------------------
+      // =================================================
+      // PARSE RESPONSE
+      // =================================================
 
-    let data;
+      let data;
 
-    try {
-      data = await response.json();
-    } catch {
+      try {
+        data =
+          await response.json();
+
+      } catch {
+        return {
+          success: false,
+          message:
+            "Server returned an invalid response.",
+        };
+      }
+
+      console.log(
+        "Registration response:",
+        data
+      );
+
+      // =================================================
+      // REGISTRATION FAILED
+      // =================================================
+
+      if (
+        !response.ok ||
+        !data.success
+      ) {
+        return {
+          success: false,
+
+          message:
+            data.msg ||
+            data.message ||
+            "Registration failed.",
+
+          details:
+            data.details || {},
+        };
+      }
+
+      // =================================================
+      // REGISTRATION SUCCESS
+      // =================================================
+
       return {
-        success: false,
-        message:
-          "Server returned an invalid response.",
-      };
-    }
+        success: true,
 
-    console.log(
-      "Registration response:",
-      data
-    );
-
-    // -----------------------------------------------
-    // REGISTRATION FAILED
-    // -----------------------------------------------
-
-    if (
-      !response.ok ||
-      !data.success
-    ) {
-      return {
-        success: false,
         message:
           data.msg ||
-          data.message ||
-          "Registration failed.",
+          (
+            adminRegistration
+              ? "Admin registered successfully."
+              : "User created successfully."
+          ),
 
         details:
           data.details || {},
       };
+
+    } catch (error) {
+      console.error(
+        "Registration error:",
+        error
+      );
+
+      return {
+        success: false,
+
+        message:
+          error.message ||
+          "Unable to connect to backend.",
+      };
     }
-
-    // -----------------------------------------------
-    // REGISTRATION SUCCESSFUL
-    // -----------------------------------------------
-
-    return {
-      success: true,
-
-      message:
-        data.msg ||
-        "Registration successful.",
-
-      details:
-        data.details || {},
-    };
-
-  } catch (error) {
-    console.error(
-      "Registration error:",
-      error
-    );
-
-    return {
-      success: false,
-      message:
-        "Unable to connect to backend. Make sure the Flask server is running.",
-    };
-  }
-};
-
+  };
 
   // ===================================================
   // AUTHENTICATED FETCH
   // ===================================================
-
-  /*
-   * Used for protected APIs:
-   *
-   * /ocr
-   * /audit_log
-   *
-   * Automatically adds:
-   *
-   * Authorization: Bearer <JWT>
-   */
 
   const authFetch = async (
     endpoint,
@@ -645,7 +847,7 @@ export const AuthProvider = ({ children }) => {
       );
 
     // -----------------------------------------------
-    // No token
+    // NO TOKEN
     // -----------------------------------------------
 
     if (!savedToken) {
@@ -657,17 +859,18 @@ export const AuthProvider = ({ children }) => {
     }
 
     // -----------------------------------------------
-    // Headers
+    // HEADERS
     // -----------------------------------------------
 
     const headers = {
       ...(options.headers || {}),
+
       Authorization:
         `Bearer ${savedToken}`,
     };
 
     // -----------------------------------------------
-    // Do NOT set Content-Type for FormData
+    // FORM DATA
     // -----------------------------------------------
 
     if (
@@ -679,7 +882,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     // -----------------------------------------------
-    // Request
+    // REQUEST
     // -----------------------------------------------
 
     const response = await fetch(
@@ -693,7 +896,7 @@ export const AuthProvider = ({ children }) => {
     );
 
     // -----------------------------------------------
-    // Invalid / expired JWT
+    // TOKEN INVALID
     // -----------------------------------------------
 
     if (
@@ -710,15 +913,9 @@ export const AuthProvider = ({ children }) => {
   // OCR UPLOAD
   // ===================================================
 
-  /*
-   * Convenience function for /ocr.
-   *
-   * Usage:
-   *
-   * const result = await uploadOCR(imageFile);
-   */
-
-  const uploadOCR = async (imageFile) => {
+  const uploadOCR = async (
+    imageFile
+  ) => {
     try {
       if (!imageFile) {
         return {
@@ -750,6 +947,7 @@ export const AuthProvider = ({ children }) => {
       try {
         data =
           await response.json();
+
       } catch {
         return {
           success: false,
@@ -769,10 +967,12 @@ export const AuthProvider = ({ children }) => {
       ) {
         return {
           success: false,
+
           message:
             data.msg ||
             data.message ||
             "OCR processing failed.",
+
           details:
             data.details || {},
         };
@@ -780,9 +980,11 @@ export const AuthProvider = ({ children }) => {
 
       return {
         success: true,
+
         message:
           data.msg ||
           "OCR completed successfully.",
+
         details:
           data.details || {},
       };
@@ -795,6 +997,7 @@ export const AuthProvider = ({ children }) => {
 
       return {
         success: false,
+
         message:
           error.message ||
           "Unable to process OCR.",
@@ -805,19 +1008,6 @@ export const AuthProvider = ({ children }) => {
   // ===================================================
   // AUDIT LOG
   // ===================================================
-
-  /*
-   * Backend:
-   *
-   * POST /audit_log
-   *
-   * Optional JSON:
-   *
-   * {
-   *   limit,
-   *   offset
-   * }
-   */
 
   const getAuditLogs = async ({
     limit,
@@ -830,12 +1020,14 @@ export const AuthProvider = ({ children }) => {
           {
             method: "POST",
 
-            body: JSON.stringify({
-              limit:
-                limit ?? null,
-              offset:
-                offset ?? null,
-            }),
+            body:
+              JSON.stringify({
+                limit:
+                  limit ?? null,
+
+                offset:
+                  offset ?? null,
+              }),
           }
         );
 
@@ -844,6 +1036,7 @@ export const AuthProvider = ({ children }) => {
       try {
         data =
           await response.json();
+
       } catch {
         return {
           success: false,
@@ -863,10 +1056,12 @@ export const AuthProvider = ({ children }) => {
       ) {
         return {
           success: false,
+
           message:
             data.msg ||
             data.message ||
             "Could not fetch audit logs.",
+
           details:
             data.details || {},
         };
@@ -874,9 +1069,11 @@ export const AuthProvider = ({ children }) => {
 
       return {
         success: true,
+
         message:
           data.msg ||
           "Audit logs fetched successfully.",
+
         details:
           data.details || [],
       };
@@ -889,12 +1086,28 @@ export const AuthProvider = ({ children }) => {
 
       return {
         success: false,
+
         message:
           error.message ||
           "Unable to fetch audit logs.",
       };
     }
   };
+
+  // ===================================================
+  // ROLE CHECKS
+  // ===================================================
+
+  const currentRole =
+    String(
+      user?.role || ""
+    ).toLowerCase();
+
+  const isAdmin =
+    currentRole === "admin";
+
+  const isOfficer =
+    currentRole === "officer";
 
   // ===================================================
   // CONTEXT
@@ -904,7 +1117,7 @@ export const AuthProvider = ({ children }) => {
     <AuthContext.Provider
       value={{
         // -------------------------------------------
-        // State
+        // STATE
         // -------------------------------------------
 
         user,
@@ -912,7 +1125,7 @@ export const AuthProvider = ({ children }) => {
         loading,
 
         // -------------------------------------------
-        // Authentication
+        // AUTHENTICATION
         // -------------------------------------------
 
         login,
@@ -920,13 +1133,13 @@ export const AuthProvider = ({ children }) => {
         verifyAuthentication,
 
         // -------------------------------------------
-        // Registration
+        // REGISTRATION
         // -------------------------------------------
 
         register,
 
         // -------------------------------------------
-        // Protected API
+        // PROTECTED API
         // -------------------------------------------
 
         authFetch,
@@ -938,24 +1151,27 @@ export const AuthProvider = ({ children }) => {
         uploadOCR,
 
         // -------------------------------------------
-        // Audit logs
+        // AUDIT LOGS
         // -------------------------------------------
 
         getAuditLogs,
 
         // -------------------------------------------
-        // Authentication state
+        // AUTH STATE
         // -------------------------------------------
 
         isAuthenticated:
           Boolean(token),
 
         // -------------------------------------------
-        // Current backend does NOT return role
+        // ROLE
         // -------------------------------------------
 
-        isAdmin: false,
-        isOfficer: false,
+        role: currentRole,
+
+        isAdmin,
+
+        isOfficer,
       }}
     >
       {children}

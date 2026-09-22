@@ -1,661 +1,524 @@
 import { useState } from "react";
 
 import {
-  ShieldCheck,
+  UserPlus,
   User,
   Mail,
   Phone,
+  Lock,
   Building2,
-  LockKeyhole,
-  Eye,
-  EyeOff,
-  ArrowRight,
+  ShieldCheck,
+  CheckCircle2,
   AlertCircle,
-  CheckCircle,
-  UserPlus,
 } from "lucide-react";
 
 import { useNavigate } from "react-router-dom";
-
 import { useAuth } from "../context/AuthContext";
+
+const API_URL = "https://hackathon-backend-0eoj.onrender.com";
+
+// --------------------------------------------------
+// SHA-256 PASSWORD HASH
+// Backend expects a SHA-256 hash
+// --------------------------------------------------
+const sha256 = async (text) => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+
+  const hashBuffer = await crypto.subtle.digest(
+    "SHA-256",
+    data
+  );
+
+  const hashArray = Array.from(
+    new Uint8Array(hashBuffer)
+  );
+
+  return hashArray
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+};
 
 export default function CreateUser() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  const { register, user } = useAuth();
-
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [organisation, setOrganisation] = useState("");
-
-  const [role, setRole] = useState("officer");
-
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] =
-    useState("");
-
-  const [showPassword, setShowPassword] =
-    useState(false);
-
-  const [showConfirmPassword, setShowConfirmPassword] =
-    useState(false);
-
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [formData, setFormData] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    password: "",
+    organization: "",
+  });
 
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  // ===================================================
-  // ADMIN ACCESS CHECK
-  // ===================================================
+  // --------------------------------------------------
+  // HANDLE INPUT CHANGE
+  // --------------------------------------------------
+  const handleChange = (e) => {
+    const { name, value } = e.target;
 
-  if (user?.role && user.role !== "admin") {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center max-w-md">
-
-          <div className="w-14 h-14 mx-auto rounded-full bg-red-100 text-red-600 flex items-center justify-center">
-            <AlertCircle size={28} />
-          </div>
-
-          <h2 className="mt-5 text-xl font-bold text-slate-800">
-            Access Denied
-          </h2>
-
-          <p className="mt-2 text-sm text-slate-500">
-            Only administrators can create new user accounts.
-          </p>
-
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="mt-6 px-5 py-2.5 bg-[#1677b8] hover:bg-[#12679f] text-white rounded-md text-sm font-semibold"
-          >
-            Back to Dashboard
-          </button>
-
-        </div>
-
-      </div>
-    );
-  }
-
-  // ===================================================
-  // SUBMIT
-  // ===================================================
-
-  const submit = async (e) => {
-    e.preventDefault();
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
 
     setError("");
-    setSuccess("");
+    setMessage("");
+  };
 
-    // Name
-    if (!name.trim()) {
-      setError("Please enter the user's full name.");
+  // --------------------------------------------------
+  // HANDLE CREATE USER
+  // --------------------------------------------------
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    setMessage("");
+    setError("");
+
+    // --------------------------------------------------
+    // ADMIN CHECK
+    // --------------------------------------------------
+    if (user?.role?.toLowerCase() !== "admin") {
+      setError("Only administrators can create users.");
       return;
     }
 
-    // Email
-    if (!email.trim()) {
-      setError("Please enter the user's email address.");
+    // --------------------------------------------------
+    // BASIC VALIDATION
+    // --------------------------------------------------
+    if (
+      !formData.name.trim() ||
+      !formData.phone.trim() ||
+      !formData.email.trim() ||
+      !formData.password ||
+      !formData.organization.trim()
+    ) {
+      setError("Please fill all fields.");
       return;
     }
 
-    // Organisation
-    if (!organisation.trim()) {
-      setError("Please enter the organisation name.");
+    // --------------------------------------------------
+    // PHONE VALIDATION
+    // --------------------------------------------------
+    if (!/^[0-9]{10}$/.test(formData.phone.trim())) {
+      setError("Please enter a valid 10-digit phone number.");
       return;
     }
 
-    // Password
-    if (password.length < 6) {
-      setError(
-        "Password must contain at least 6 characters."
-      );
+    // --------------------------------------------------
+    // EMAIL VALIDATION
+    // --------------------------------------------------
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      setError("Please enter a valid email address.");
       return;
     }
 
-    // Confirm password
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+    // --------------------------------------------------
+    // PASSWORD VALIDATION
+    // --------------------------------------------------
+    if (formData.password.length < 6) {
+      setError("Password must contain at least 6 characters.");
       return;
     }
+
+    setLoading(true);
 
     try {
-      setLoading(true);
+      // --------------------------------------------------
+      // GET ADMIN JWT TOKEN
+      // --------------------------------------------------
+      const token = localStorage.getItem("pramaanai_token");
 
-      /*
-       * Admin creates the account.
-       *
-       * The selected role is sent to the backend.
-       *
-       * Current backend supports:
-       * admin
-       * officer
-       */
+      console.log("Token exists:", !!token);
 
-      const result = await register({
-        name,
-        email,
-        phone,
-        organisation,
-        password,
-        role,
-      });
-
-      console.log("Create user result:", result);
-
-      if (!result.success) {
-        setError(
-          result.message ||
-            "Unable to create user account."
-        );
+      if (!token) {
+        setError("Admin login token not found. Please login again.");
         return;
       }
 
-      setSuccess(
-        result.message ||
+      // --------------------------------------------------
+      // CURRENT ADMIN DATA
+      // --------------------------------------------------
+      const oldUserData = {
+        name: user?.name || "",
+        email: user?.email || "",
+        phone: user?.phone || "",
+        organization:
+          user?.organization ||
+          user?.organizationName ||
+          user?.organization_name ||
+          "",
+        role: "admin",
+      };
+
+      // --------------------------------------------------
+      // HASH NEW USER PASSWORD
+      // --------------------------------------------------
+      const passwordHash = await sha256(formData.password);
+
+      // --------------------------------------------------
+      // NEW USER DATA
+      // --------------------------------------------------
+      const newUserData = {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        organization: formData.organization.trim(),
+        password: passwordHash,
+        role: "user",
+      };
+
+      // --------------------------------------------------
+      // COMPLETE BACKEND PAYLOAD
+      // Backend /register expects:
+      //
+      // {
+      //   oldUserData,
+      //   newUserData,
+      //   adminRegistration
+      // }
+      // --------------------------------------------------
+      const requestBody = {
+        oldUserData,
+        newUserData,
+        adminRegistration: false,
+      };
+
+      console.log("REGISTER REQUEST:", requestBody);
+
+      // --------------------------------------------------
+      // SEND REQUEST
+      // --------------------------------------------------
+      const response = await fetch(`${API_URL}/register`, {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+
+        body: JSON.stringify(requestBody),
+      });
+
+      // --------------------------------------------------
+      // READ RESPONSE SAFELY
+      // --------------------------------------------------
+      const responseText = await response.text();
+
+      console.log("HTTP STATUS:", response.status);
+      console.log("RAW BACKEND RESPONSE:", responseText);
+
+      let result = {};
+
+      try {
+        result = responseText
+          ? JSON.parse(responseText)
+          : {};
+      } catch (parseError) {
+        console.error("JSON PARSE ERROR:", parseError);
+
+        throw new Error(
+          `Backend returned invalid JSON. HTTP ${response.status}.`
+        );
+      }
+
+      console.log("PARSED BACKEND RESPONSE:", result);
+
+      // --------------------------------------------------
+      // BACKEND ERROR
+      // --------------------------------------------------
+      if (!response.ok) {
+        throw new Error(
+          result?.message ||
+            result?.msg ||
+            result?.error ||
+            `Server error (${response.status})`
+        );
+      }
+
+      // Some versions of your backend may return success
+      // differently, so only reject explicit failure.
+      if (result?.success === false) {
+        throw new Error(
+          result?.message ||
+            result?.msg ||
+            result?.error ||
+            "Could not create user."
+        );
+      }
+
+      // --------------------------------------------------
+      // SUCCESS
+      // --------------------------------------------------
+      setMessage(
+        result?.message ||
+          result?.msg ||
           "User account created successfully."
       );
 
-      // Clear form
-      setName("");
-      setEmail("");
-      setPhone("");
-      setOrganisation("");
-      setRole("officer");
-      setPassword("");
-      setConfirmPassword("");
-
-    } catch (error) {
-      console.error(
-        "Create user error:",
-        error
-      );
+      // --------------------------------------------------
+      // CLEAR FORM
+      // --------------------------------------------------
+      setFormData({
+        name: "",
+        phone: "",
+        email: "",
+        password: "",
+        organization: "",
+      });
+    } catch (err) {
+      console.error("CREATE USER ERROR:", err);
 
       setError(
-        "Unable to connect to the registration server."
+        err?.message ||
+          "Something went wrong while creating the user."
       );
-
     } finally {
       setLoading(false);
     }
   };
 
-  // ===================================================
-  // UI
-  // ===================================================
-
   return (
-    <div className="min-h-full bg-slate-50 p-6 md:p-8">
-
-      <div className="max-w-5xl mx-auto">
+    <div className="min-h-screen bg-slate-50">
+      {/* MAIN CONTENT */}
+      <div className="ml-[245px] min-h-screen">
 
         {/* HEADER */}
-
-        <div className="mb-7">
-
-          <div className="flex items-center gap-3">
-
-            <div className="w-11 h-11 bg-[#1677b8] rounded-lg flex items-center justify-center text-white">
-              <UserPlus size={22} />
-            </div>
-
-            <div>
-              <p className="text-xs font-bold tracking-[1.5px] text-[#1677b8]">
-                ADMINISTRATION
-              </p>
-
-              <h1 className="text-2xl md:text-3xl font-bold text-[#17212b]">
-                Create User Account
-              </h1>
-            </div>
-
-          </div>
-
-          <p className="mt-3 text-sm text-slate-500 max-w-2xl">
-            Create an account for an authorised officer or
-            guard. Users created here can sign in through
-            the normal PramaanAI login page.
-          </p>
-
-        </div>
-
-
-        {/* FORM CARD */}
-
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-
-          {/* CARD HEADER */}
-
-          <div className="px-6 py-5 border-b border-slate-200">
-
-            <h2 className="text-base font-bold text-slate-800">
-              User Information
-            </h2>
+        <div className="h-[72px] bg-white border-b border-slate-200 flex items-center px-8">
+          <div>
+            <h1 className="text-xl font-semibold text-[#0b1f33]">
+              Create User
+            </h1>
 
             <p className="text-xs text-slate-500 mt-1">
-              Enter the details of the person you want to
-              authorize on this organisation's account.
+              Create a new user account for your organization
             </p>
-
           </div>
+        </div>
 
+        {/* CONTENT */}
+        <main className="p-8">
+          <div className="max-w-3xl mx-auto">
 
-          <div className="p-6 md:p-8">
+            {/* CARD */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
 
-            {/* ERROR */}
+              {/* CARD HEADER */}
+              <div className="px-7 py-6 border-b border-slate-100">
+                <div className="flex items-center gap-4">
 
-            {error && (
-              <div className="mb-6 p-3 rounded-lg border border-red-200 bg-red-50 text-sm text-red-700 flex gap-2">
+                  <div className="w-12 h-12 rounded-lg bg-[#1677b8]/10 text-[#1677b8] flex items-center justify-center">
+                    <UserPlus size={23} />
+                  </div>
 
-                <AlertCircle
-                  size={17}
-                  className="mt-0.5 shrink-0"
-                />
+                  <div>
+                    <h2 className="text-lg font-semibold text-[#0b1f33]">
+                      New User Account
+                    </h2>
 
-                <span>{error}</span>
+                    <p className="text-sm text-slate-500">
+                      Add a User / Officer to the system
+                    </p>
+                  </div>
 
+                </div>
               </div>
-            )}
 
-
-            {/* SUCCESS */}
-
-            {success && (
-              <div className="mb-6 p-3 rounded-lg border border-green-200 bg-green-50 text-sm text-green-700 flex gap-2">
-
-                <CheckCircle
-                  size={17}
-                  className="mt-0.5 shrink-0"
-                />
-
-                <span>{success}</span>
-
-              </div>
-            )}
-
-
-            <form
-              onSubmit={submit}
-              className="space-y-6"
-            >
-
-              {/* ROW 1 */}
-
-              <div className="grid md:grid-cols-2 gap-5">
+              {/* FORM */}
+              <form
+                onSubmit={handleSubmit}
+                className="p-7 space-y-6"
+              >
 
                 {/* NAME */}
-
                 <div>
-
-                  <label className="text-xs font-semibold text-slate-600">
-                    FULL NAME
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Full Name
                   </label>
 
-                  <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8] focus-within:ring-1 focus-within:ring-[#1677b8]/20 transition">
-
+                  <div className="relative">
                     <User
                       size={17}
-                      className="text-slate-400 shrink-0"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                     />
 
                     <input
-                      required
                       type="text"
-                      value={name}
-                      onChange={(e) =>
-                        setName(e.target.value)
-                      }
+                      name="name"
+                      value={formData.name}
+                      onChange={handleChange}
                       placeholder="Enter full name"
-                      className="w-full ml-3 outline-none text-sm text-slate-800"
-                      autoComplete="name"
+                      className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg outline-none focus:border-[#1677b8] focus:ring-2 focus:ring-[#1677b8]/10"
                     />
-
                   </div>
-
                 </div>
-
-
-                {/* EMAIL */}
-
-                <div>
-
-                  <label className="text-xs font-semibold text-slate-600">
-                    EMAIL ADDRESS
-                  </label>
-
-                  <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8] focus-within:ring-1 focus-within:ring-[#1677b8]/20 transition">
-
-                    <Mail
-                      size={17}
-                      className="text-slate-400 shrink-0"
-                    />
-
-                    <input
-                      required
-                      type="email"
-                      value={email}
-                      onChange={(e) =>
-                        setEmail(e.target.value)
-                      }
-                      placeholder="Enter email address"
-                      className="w-full ml-3 outline-none text-sm text-slate-800"
-                      autoComplete="email"
-                    />
-
-                  </div>
-
-                </div>
-
-              </div>
-
-
-              {/* ROW 2 */}
-
-              <div className="grid md:grid-cols-2 gap-5">
 
                 {/* PHONE */}
-
                 <div>
-
-                  <label className="text-xs font-semibold text-slate-600">
-                    PHONE NUMBER
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Phone Number
                   </label>
 
-                  <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8] focus-within:ring-1 focus-within:ring-[#1677b8]/20 transition">
-
+                  <div className="relative">
                     <Phone
                       size={17}
-                      className="text-slate-400 shrink-0"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                     />
 
                     <input
                       type="tel"
-                      value={phone}
-                      onChange={(e) =>
-                        setPhone(e.target.value)
-                      }
-                      placeholder="Enter phone number"
-                      className="w-full ml-3 outline-none text-sm text-slate-800"
-                      autoComplete="tel"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      placeholder="Enter 10-digit phone number"
+                      maxLength={10}
+                      inputMode="numeric"
+                      className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg outline-none focus:border-[#1677b8] focus:ring-2 focus:ring-[#1677b8]/10"
                     />
-
                   </div>
-
                 </div>
 
-
-                {/* ORGANISATION */}
-
+                {/* EMAIL */}
                 <div>
-
-                  <label className="text-xs font-semibold text-slate-600">
-                    ORGANISATION NAME
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Email Address
                   </label>
 
-                  <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8] focus-within:ring-1 focus-within:ring-[#1677b8]/20 transition">
-
-                    <Building2
+                  <div className="relative">
+                    <Mail
                       size={17}
-                      className="text-slate-400 shrink-0"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                     />
 
                     <input
-                      required
-                      type="text"
-                      value={organisation}
-                      onChange={(e) =>
-                        setOrganisation(e.target.value)
-                      }
-                      placeholder="Enter organisation name"
-                      className="w-full ml-3 outline-none text-sm text-slate-800"
-                      autoComplete="organization"
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      placeholder="Enter email address"
+                      className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg outline-none focus:border-[#1677b8] focus:ring-2 focus:ring-[#1677b8]/10"
                     />
-
                   </div>
-
                 </div>
 
-              </div>
-
-
-              {/* ROW 3 */}
-
-              <div className="grid md:grid-cols-2 gap-5">
-
-                {/* ROLE */}
-
+                {/* PASSWORD */}
                 <div>
-
-                  <label className="text-xs font-semibold text-slate-600">
-                    ACCOUNT ROLE
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Password
                   </label>
 
-                  <div className="mt-2 relative">
-
-                    <ShieldCheck
+                  <div className="relative">
+                    <Lock
                       size={17}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                     />
 
-                    <select
-                      value={role}
-                      onChange={(e) =>
-                        setRole(e.target.value)
-                      }
-                      className="w-full h-11 pl-10 pr-3 border border-slate-300 rounded-md outline-none text-sm text-slate-800 bg-white focus:border-[#1677b8] focus:ring-1 focus:ring-[#1677b8]/20"
-                    >
-
-                      <option value="officer">
-                        Officer / Guard
-                      </option>
-
-                    </select>
-
+                    <input
+                      type="password"
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      placeholder="Create password"
+                      className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg outline-none focus:border-[#1677b8] focus:ring-2 focus:ring-[#1677b8]/10"
+                    />
                   </div>
-
-                  <p className="mt-1.5 text-[11px] text-slate-400">
-                    Only administrators can create administrator accounts.
-                  </p>
-
                 </div>
 
+                {/* ORGANIZATION */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Organization Name
+                  </label>
 
-                {/* EMPTY */}
+                  <div className="relative">
+                    <Building2
+                      size={17}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    />
 
-                <div className="hidden md:block" />
+                    <input
+                      type="text"
+                      name="organization"
+                      value={formData.organization}
+                      onChange={handleChange}
+                      placeholder="Enter organization name"
+                      className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg outline-none focus:border-[#1677b8] focus:ring-2 focus:ring-[#1677b8]/10"
+                    />
+                  </div>
+                </div>
 
-              </div>
+                {/* ROLE */}
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                  <div className="flex items-center gap-3">
 
+                    <ShieldCheck
+                      size={19}
+                      className="text-[#1677b8]"
+                    />
 
-              {/* PASSWORD SECTION */}
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">
+                        Account Type
+                      </p>
 
-              <div className="pt-4 border-t border-slate-200">
-
-                <h3 className="text-sm font-bold text-slate-800">
-                  Login Credentials
-                </h3>
-
-                <p className="text-xs text-slate-500 mt-1 mb-4">
-                  These credentials will be used by the officer
-                  to sign in through the normal login page.
-                </p>
-
-
-                <div className="grid md:grid-cols-2 gap-5">
-
-                  {/* PASSWORD */}
-
-                  <div>
-
-                    <label className="text-xs font-semibold text-slate-600">
-                      PASSWORD
-                    </label>
-
-                    <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8] focus-within:ring-1 focus-within:ring-[#1677b8]/20 transition">
-
-                      <LockKeyhole
-                        size={17}
-                        className="text-slate-400 shrink-0"
-                      />
-
-                      <input
-                        required
-                        type={
-                          showPassword
-                            ? "text"
-                            : "password"
-                        }
-                        value={password}
-                        onChange={(e) =>
-                          setPassword(e.target.value)
-                        }
-                        placeholder="Minimum 6 characters"
-                        className="w-full ml-3 outline-none text-sm text-slate-800"
-                        autoComplete="new-password"
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowPassword(
-                            (previous) =>
-                              !previous
-                          )
-                        }
-                        className="text-slate-400 hover:text-slate-600 transition"
-                      >
-                        {showPassword ? (
-                          <EyeOff size={17} />
-                        ) : (
-                          <Eye size={17} />
-                        )}
-                      </button>
-
+                      <p className="text-xs text-slate-500 mt-1">
+                        User / Officer
+                      </p>
                     </div>
 
                   </div>
+                </div>
 
-
-                  {/* CONFIRM PASSWORD */}
-
-                  <div>
-
-                    <label className="text-xs font-semibold text-slate-600">
-                      CONFIRM PASSWORD
-                    </label>
-
-                    <div className="mt-2 flex items-center border border-slate-300 rounded-md h-11 px-3 focus-within:border-[#1677b8] focus-within:ring-1 focus-within:ring-[#1677b8]/20 transition">
-
-                      <LockKeyhole
-                        size={17}
-                        className="text-slate-400 shrink-0"
-                      />
-
-                      <input
-                        required
-                        type={
-                          showConfirmPassword
-                            ? "text"
-                            : "password"
-                        }
-                        value={confirmPassword}
-                        onChange={(e) =>
-                          setConfirmPassword(
-                            e.target.value
-                          )
-                        }
-                        placeholder="Confirm password"
-                        className="w-full ml-3 outline-none text-sm text-slate-800"
-                        autoComplete="new-password"
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setShowConfirmPassword(
-                            (previous) =>
-                              !previous
-                          )
-                        }
-                        className="text-slate-400 hover:text-slate-600 transition"
-                      >
-                        {showConfirmPassword ? (
-                          <EyeOff size={17} />
-                        ) : (
-                          <Eye size={17} />
-                        )}
-                      </button>
-
-                    </div>
-
+                {/* SUCCESS MESSAGE */}
+                {message && (
+                  <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 text-sm">
+                    <CheckCircle2 size={18} />
+                    <span>{message}</span>
                   </div>
+                )}
+
+                {/* ERROR MESSAGE */}
+                {error && (
+                  <div className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+                    <AlertCircle size={18} />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                {/* BUTTONS */}
+                <div className="flex justify-end gap-3 pt-2">
+
+                  <button
+                    type="button"
+                    onClick={() => navigate("/dashboard")}
+                    className="px-5 py-3 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-6 py-3 rounded-lg bg-[#1677b8] text-white text-sm font-medium hover:bg-[#12669e] disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    <UserPlus size={17} />
+
+                    {loading
+                      ? "Creating User..."
+                      : "Create User"}
+                  </button>
 
                 </div>
 
-              </div>
-
-
-              {/* BUTTONS */}
-
-              <div className="pt-2 flex flex-col sm:flex-row gap-3">
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 h-11 bg-[#1677b8] hover:bg-[#12679f] text-white rounded-md font-semibold text-sm flex items-center justify-center gap-2 transition disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-
-                  {loading
-                    ? "Creating account..."
-                    : "Create User Account"}
-
-                  {!loading && (
-                    <ArrowRight size={17} />
-                  )}
-
-                </button>
-
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate("/dashboard")
-                  }
-                  className="h-11 px-6 border border-slate-300 text-slate-600 hover:bg-slate-50 rounded-md font-semibold text-sm transition"
-                >
-                  Cancel
-                </button>
-
-              </div>
-
-            </form>
-
+              </form>
+            </div>
           </div>
-
-        </div>
-
-
-        {/* SECURITY FOOTER */}
-
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
-
-          <p className="text-[10px] font-bold text-slate-400 tracking-[1px]">
-            ADMIN CONTROLLED ACCOUNT CREATION
-          </p>
-
-          <p className="mt-1 text-xs text-slate-500">
-            Only authorised administrators should create
-            accounts for officers and guards.
-          </p>
-
-        </div>
-
+        </main>
       </div>
-
     </div>
   );
 }
