@@ -19,10 +19,10 @@ export default function Sidebar() {
 
   const { user, logout } = useAuth();
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
+  // const handleLogout = () => {
+  //   logout();
+  //   navigate("/login");
+  // };
 
   const navigation = [
     {
@@ -149,7 +149,7 @@ export default function Sidebar() {
       </nav>
 
       {/* USER */}
-      <div className="border-t border-white/10 p-4">
+      {/* <div className="border-t border-white/10 p-4">
 
         <div className="flex items-center">
 
@@ -179,7 +179,7 @@ export default function Sidebar() {
           Sign out
         </button>
 
-      </div>
+      </div> */}
 
     </aside>
   );
