@@ -283,35 +283,30 @@ export default function CreateUser() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* MAIN CONTENT */}
-      <div className="ml-[245px] min-h-screen">
+    <div className="mx-auto w-full max-w-3xl">
+      {/* PAGE HEADER */}
+      <div className="mb-6 sm:mb-7">
+        <p className="text-xs font-semibold tracking-wide text-slate-400">
+          ADMINISTRATION / USER MANAGEMENT
+        </p>
 
-        {/* HEADER */}
-        <div className="h-[72px] bg-white border-b border-slate-200 flex items-center px-8">
-          <div>
-            <h1 className="text-xl font-semibold text-[#0b1f33]">
-              Create User
-            </h1>
+        <h1 className="mt-1 text-2xl font-bold text-[#17212b]">
+          Create User
+        </h1>
 
-            <p className="text-xs text-slate-500 mt-1">
-              Create a new user account for your organization
-            </p>
-          </div>
-        </div>
+        <p className="mt-1 text-sm text-slate-500">
+          Create a new user account for your organization.
+        </p>
+      </div>
 
-        {/* CONTENT */}
-        <main className="p-8">
-          <div className="max-w-3xl mx-auto">
-
-            {/* CARD */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* CARD */}
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
 
               {/* CARD HEADER */}
-              <div className="px-7 py-6 border-b border-slate-100">
-                <div className="flex items-center gap-4">
+              <div className="border-b border-slate-100 px-4 py-5 sm:px-7 sm:py-6">
+                <div className="flex items-center gap-3 sm:gap-4">
 
-                  <div className="w-12 h-12 rounded-lg bg-[#1677b8]/10 text-[#1677b8] flex items-center justify-center">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#1677b8]/10 text-[#1677b8] sm:h-12 sm:w-12">
                     <UserPlus size={23} />
                   </div>
 
@@ -331,7 +326,7 @@ export default function CreateUser() {
               {/* FORM */}
               <form
                 onSubmit={handleSubmit}
-                className="p-7 space-y-6"
+                className="space-y-5 p-4 sm:space-y-6 sm:p-7"
               >
 
                 {/* NAME */}
@@ -475,27 +470,27 @@ export default function CreateUser() {
 
                 {/* SUCCESS MESSAGE */}
                 {message && (
-                  <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 text-sm">
-                    <CheckCircle2 size={18} />
+                  <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                    <CheckCircle2 size={18} className="shrink-0" />
                     <span>{message}</span>
                   </div>
                 )}
 
                 {/* ERROR MESSAGE */}
                 {error && (
-                  <div className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
-                    <AlertCircle size={18} />
+                  <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    <AlertCircle size={18} className="shrink-0" />
                     <span>{error}</span>
                   </div>
                 )}
 
                 {/* BUTTONS */}
-                <div className="flex justify-end gap-3 pt-2">
+                <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
 
                   <button
                     type="button"
                     onClick={() => navigate("/dashboard")}
-                    className="px-5 py-3 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                    className="w-full rounded-lg border border-slate-200 px-5 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 sm:w-auto"
                   >
                     Cancel
                   </button>
@@ -503,7 +498,7 @@ export default function CreateUser() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-6 py-3 rounded-lg bg-[#1677b8] text-white text-sm font-medium hover:bg-[#12669e] disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#1677b8] px-6 py-3 text-sm font-medium text-white hover:bg-[#12669e] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                   >
                     <UserPlus size={17} />
 
@@ -515,9 +510,6 @@ export default function CreateUser() {
                 </div>
 
               </form>
-            </div>
-          </div>
-        </main>
       </div>
     </div>
   );
