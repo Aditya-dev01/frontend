@@ -4,6 +4,7 @@ import {
   ShieldCheck,
   History,
   UserPlus,
+  X,
 } from "lucide-react";
 
 import {
@@ -12,7 +13,7 @@ import {
 
 import { useAuth } from "../context/AuthContext";
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }) {
 
   const { user } = useAuth();
 
@@ -60,7 +61,22 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[245px] bg-[#0b1f33] text-white flex flex-col">
+    <>
+      <button
+        type="button"
+        aria-label="Close navigation menu"
+        onClick={onClose}
+        className={`fixed inset-0 z-40 bg-slate-950/50 transition-opacity lg:hidden ${
+          isOpen ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      />
+
+      <aside
+        aria-label="Main navigation"
+        className={`fixed left-0 top-0 z-50 flex h-screen w-[245px] -translate-x-full flex-col bg-[#0b1f33] text-white shadow-2xl transition-transform duration-300 ease-in-out lg:translate-x-0 lg:shadow-none ${
+          isOpen ? "translate-x-0" : ""
+        }`}
+      >
 
       {/* BRAND */}
       <div className="h-[72px] px-5 flex items-center border-b border-white/10">
@@ -78,6 +94,15 @@ export default function Sidebar() {
             IDENTITY INTELLIGENCE
           </div>
         </div>
+
+        <button
+          type="button"
+          aria-label="Close navigation menu"
+          onClick={onClose}
+          className="ml-auto rounded-md p-2 text-slate-300 hover:bg-white/10 hover:text-white lg:hidden"
+        >
+          <X size={20} />
+        </button>
 
       </div>
 
@@ -106,6 +131,7 @@ export default function Sidebar() {
                   <NavLink
                     key={item.path}
                     to={item.path}
+                    onClick={onClose}
                     className={({ isActive }) =>
                       `
                       flex items-center gap-3
@@ -139,6 +165,7 @@ export default function Sidebar() {
         ))}
 
       </nav>
-    </aside>
+      </aside>
+    </>
   );
 }
