@@ -3,26 +3,18 @@ import {
   FileSearch,
   ShieldCheck,
   History,
-  LogOut,
   UserPlus,
 } from "lucide-react";
 
 import {
   NavLink,
-  useNavigate,
 } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
 
 export default function Sidebar() {
-  const navigate = useNavigate();
 
-  const { user, logout } = useAuth();
-
-  // const handleLogout = () => {
-  //   logout();
-  //   navigate("/login");
-  // };
+  const { user } = useAuth();
 
   const navigation = [
     {
@@ -147,40 +139,6 @@ export default function Sidebar() {
         ))}
 
       </nav>
-
-      {/* USER */}
-      {/* <div className="border-t border-white/10 p-4">
-
-        <div className="flex items-center">
-
-          <div className="w-9 h-9 rounded-full bg-[#1677b8] flex items-center justify-center text-sm font-semibold">
-            {user?.name?.charAt(0)?.toUpperCase() || "U"}
-          </div>
-
-          <div className="ml-3 min-w-0">
-
-            <p className="text-sm font-medium truncate">
-              {user?.name || "User"}
-            </p>
-
-            <p className="text-[11px] text-slate-500 capitalize">
-              {user?.role || "Officer"}
-            </p>
-
-          </div>
-
-        </div>
-
-        <button
-          onClick={handleLogout}
-          className="mt-4 w-full flex items-center gap-3 px-3 py-2 rounded-md text-xs text-slate-400 hover:text-white hover:bg-white/5"
-        >
-          <LogOut size={15} />
-          Sign out
-        </button>
-
-      </div> */}
-
     </aside>
   );
 }
