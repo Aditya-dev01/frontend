@@ -78,7 +78,7 @@ export default function DocumentUpload() {
       formData.append("image", documentFile);
 
       formData.append(
-        "documentType",
+        "document_type",
         selectedDocumentType
       );
 
