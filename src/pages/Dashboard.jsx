@@ -24,11 +24,14 @@ import { useNavigate } from "react-router-dom";
 import StatCard from "../components/StatCard";
 import RiskBadge from "../components/RiskBadge";
 
+const API_URL =
+  "https://hackathon-backend-0eoj.onrender.com";
+
 export default function Dashboard() {
   const navigate = useNavigate();
 
   // --------------------------------------------------
-  // Dashboard State
+  // State
   // --------------------------------------------------
 
   const [chartData, setChartData] = useState([]);
@@ -39,8 +42,13 @@ export default function Dashboard() {
     suspicious: 0,
   });
 
+  const [recentScreenings, setRecentScreenings] = useState([]);
+
   const [loading, setLoading] = useState(true);
+  const [auditLoading, setAuditLoading] = useState(true);
+
   const [error, setError] = useState("");
+  const [auditError, setAuditError] = useState("");
 
   // --------------------------------------------------
   // Format backend timestamp
@@ -48,8 +56,8 @@ export default function Dashboard() {
   // Backend:
   // "Sat, 26 Sep 2026 18:36:44 GMT"
   //
-  // Chart:
-  // "26 Sep"
+  // Display:
+  // "26 Sep 2026"
   // --------------------------------------------------
 
   const formatChartDate = (timestamp) => {
@@ -64,17 +72,12 @@ export default function Dashboard() {
     return date.toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "short",
+      year: "numeric",
     });
   };
 
   // --------------------------------------------------
-  // Format date for tooltip
-  //
-  // Backend:
-  // "Sat, 26 Sep 2026 18:36:44 GMT"
-  //
-  // Tooltip:
-  // "26 Sep 2026"
+  // Format tooltip date
   // --------------------------------------------------
 
   const formatTooltipDate = (timestamp) => {
@@ -95,9 +98,6 @@ export default function Dashboard() {
 
   // --------------------------------------------------
   // Get date key
-  //
-  // This is used to combine multiple audits
-  // that happened on the same date.
   // --------------------------------------------------
 
   const getDateKey = (timestamp) => {
@@ -117,8 +117,107 @@ export default function Dashboard() {
   };
 
   // --------------------------------------------------
-  // Fetch Dashboard Data
+  // Format time
+  //
+  // Backend:
+  // "Sat, 26 Sep 2026 18:36:44 GMT"
+  //
+  // Display:
+  // "00:06" / local time
   // --------------------------------------------------
+
+  const formatTime = (timestamp) => {
+    if (!timestamp) return "-";
+
+    const date = new Date(timestamp);
+
+    if (Number.isNaN(date.getTime())) {
+      return "-";
+    }
+
+    return date.toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  };
+
+  // --------------------------------------------------
+  // Format document type
+  // --------------------------------------------------
+
+  const formatDocumentType = (documentType) => {
+    if (!documentType) return "-";
+
+    return String(documentType)
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (char) =>
+        char.toUpperCase()
+      );
+  };
+
+  // --------------------------------------------------
+  // Convert decision to RiskBadge level
+  // --------------------------------------------------
+
+  const getRiskLevel = (decision, riskScore) => {
+    const normalizedDecision = String(
+      decision || ""
+    ).toLowerCase();
+
+    if (normalizedDecision.includes("reject")) {
+      return "high";
+    }
+
+    if (
+      normalizedDecision.includes("suspicious") ||
+      normalizedDecision.includes("review")
+    ) {
+      return "medium";
+    }
+
+    const score = Number(riskScore || 0);
+
+    if (score >= 0.7) {
+      return "high";
+    }
+
+    if (score >= 0.3) {
+      return "medium";
+    }
+
+    return "low";
+  };
+
+  // --------------------------------------------------
+  // Format risk score
+  //
+  // Backend:
+  // 0.1494
+  //
+  // Display:
+  // 15
+  // --------------------------------------------------
+
+  const formatRiskScore = (riskScore) => {
+    const score = Number(riskScore);
+
+    if (Number.isNaN(score)) {
+      return 0;
+    }
+
+    // Backend appears to return a decimal value
+    // between 0 and 1.
+    if (score <= 1) {
+      return Math.round(score * 100);
+    }
+
+    return Math.round(score);
+  };
+
+  // ==================================================
+  // FETCH DASHBOARD DATA
+  // ==================================================
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -126,7 +225,9 @@ export default function Dashboard() {
         setLoading(true);
         setError("");
 
-        const token = localStorage.getItem("pramaanai_token");
+        const token = localStorage.getItem(
+          "pramaanai_token"
+        );
 
         if (!token) {
           setError(
@@ -137,7 +238,7 @@ export default function Dashboard() {
         }
 
         const response = await axios.post(
-          "https://hackathon-backend-0eoj.onrender.com/dashboard",
+          `${API_URL}/dashboard`,
           {
             prev_day_count: 6,
           },
@@ -162,11 +263,8 @@ export default function Dashboard() {
           );
         }
 
-        // --------------------------------------------------
-        // Get backend details
-        // --------------------------------------------------
-
-        const details = response.data?.details || {};
+        const details =
+          response.data?.details || {};
 
         const dateData =
           details.audit_logs_by_date || [];
@@ -174,34 +272,8 @@ export default function Dashboard() {
         const decisionResponse =
           details.audit_logs_by_decision || {};
 
-        console.log(
-          "Raw audit logs by date:",
-          dateData
-        );
-
-        console.log(
-          "Audit logs by decision:",
-          decisionResponse
-        );
-
         // --------------------------------------------------
         // Prepare graph data
-        //
-        // Backend:
-        //
-        // {
-        //   "log_count": 1,
-        //   "timestamp":
-        //   "Sat, 26 Sep 2026 18:36:44 GMT"
-        // }
-        //
-        // Frontend:
-        //
-        // {
-        //   date: "26 Sep",
-        //   audits: 1,
-        //   timestamp: "Sat, 26 Sep 2026..."
-        // }
         // --------------------------------------------------
 
         const groupedByDate = {};
@@ -214,7 +286,8 @@ export default function Dashboard() {
 
             if (!timestamp) return;
 
-            const dateKey = getDateKey(timestamp);
+            const dateKey =
+              getDateKey(timestamp);
 
             if (!dateKey) return;
 
@@ -234,24 +307,19 @@ export default function Dashboard() {
           });
         }
 
-        // --------------------------------------------------
-        // Convert grouped object to chart array
-        // --------------------------------------------------
-
-        const formattedChartData = Object.entries(
-          groupedByDate
-        )
-          .sort(([dateA], [dateB]) =>
-            dateA.localeCompare(dateB)
-          )
-          .map(([dateKey, value]) => ({
-            date: formatChartDate(
-              value.timestamp
-            ),
-            fullDate: value.timestamp,
-            audits: value.audits,
-            dateKey,
-          }));
+        const formattedChartData =
+          Object.entries(groupedByDate)
+            .sort(([dateA], [dateB]) =>
+              dateA.localeCompare(dateB)
+            )
+            .map(([dateKey, value]) => ({
+              date: formatChartDate(
+                value.timestamp
+              ),
+              fullDate: value.timestamp,
+              audits: value.audits,
+              dateKey,
+            }));
 
         console.log(
           "Final Chart Data:",
@@ -270,7 +338,8 @@ export default function Dashboard() {
 
         if (
           decisionResponse &&
-          typeof decisionResponse === "object" &&
+          typeof decisionResponse ===
+            "object" &&
           !Array.isArray(decisionResponse)
         ) {
           verified = Number(
@@ -305,37 +374,43 @@ export default function Dashboard() {
           rejected = 0;
           suspicious = 0;
 
-          decisionResponse.forEach((item) => {
-            const decision = String(
-              item.decision ??
-                item.result ??
-                item.label ??
-                ""
-            ).toLowerCase();
+          decisionResponse.forEach(
+            (item) => {
+              const decision = String(
+                item.decision ??
+                  item.result ??
+                  item.label ??
+                  ""
+              ).toLowerCase();
 
-            const count = Number(
-              item.count ??
-                item.total ??
-                item.value ??
-                0
-            );
+              const count = Number(
+                item.count ??
+                  item.total ??
+                  item.value ??
+                  0
+              );
 
-            if (
-              decision.includes("verified") ||
-              decision.includes("approve")
-            ) {
-              verified += count;
-            } else if (
-              decision.includes("reject")
-            ) {
-              rejected += count;
-            } else if (
-              decision.includes("suspicious") ||
-              decision.includes("review")
-            ) {
-              suspicious += count;
+              if (
+                decision.includes(
+                  "verified"
+                ) ||
+                decision.includes("approve")
+              ) {
+                verified += count;
+              } else if (
+                decision.includes("reject")
+              ) {
+                rejected += count;
+              } else if (
+                decision.includes(
+                  "suspicious"
+                ) ||
+                decision.includes("review")
+              ) {
+                suspicious += count;
+              }
             }
-          });
+          );
         }
 
         setDecisionData({
@@ -364,9 +439,90 @@ export default function Dashboard() {
     fetchDashboardData();
   }, []);
 
-  // --------------------------------------------------
+  // ==================================================
+  // FETCH RECENT AUDIT LOGS
+  // ==================================================
+
+  useEffect(() => {
+    const fetchRecentAudits = async () => {
+      try {
+        setAuditLoading(true);
+        setAuditError("");
+
+        const token = localStorage.getItem(
+          "pramaanai_token"
+        );
+
+        if (!token) {
+          setAuditError(
+            "Authentication token not found."
+          );
+          setAuditLoading(false);
+          return;
+        }
+
+        const response = await axios.post(
+          `${API_URL}/audit_logs`,
+          {
+            limit: 5,
+            offset: 0,
+          },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        console.log(
+          "Audit Logs API Response:",
+          response.data
+        );
+
+        if (!response.data?.success) {
+          throw new Error(
+            response.data?.msg ||
+              response.data?.message ||
+              "Could not fetch audit logs."
+          );
+        }
+
+        const rows =
+          response.data?.details?.rows || [];
+
+        if (!Array.isArray(rows)) {
+          setRecentScreenings([]);
+          return;
+        }
+
+        setRecentScreenings(rows);
+      } catch (err) {
+        console.error(
+          "Audit Logs API Error:",
+          err
+        );
+
+        setAuditError(
+          err.response?.data?.msg ||
+            err.response?.data?.message ||
+            err.response?.data?.error ||
+            err.message ||
+            "Failed to load recent screenings."
+        );
+
+        setRecentScreenings([]);
+      } finally {
+        setAuditLoading(false);
+      }
+    };
+
+    fetchRecentAudits();
+  }, []);
+
+  // ==================================================
   // Calculate totals
-  // --------------------------------------------------
+  // ==================================================
 
   const totalScreened =
     decisionData.verified +
@@ -400,15 +556,19 @@ export default function Dashboard() {
         )
       : 0;
 
+  // ==================================================
+  // UI
+  // ==================================================
+
   return (
     <div className="max-w-[1400px] mx-auto">
 
-      {/* --------------------------------------------------
-          Header
-      -------------------------------------------------- */}
+      {/* Header */}
 
       <div className="flex flex-col md:flex-row md:justify-between md:items-end mb-7">
+
         <div>
+
           <p className="text-xs text-slate-400 tracking-wide">
             OVERVIEW / SECURITY OPERATIONS
           </p>
@@ -420,6 +580,7 @@ export default function Dashboard() {
           <p className="text-sm text-slate-500 mt-1">
             Monitor identity verification activity and security risks.
           </p>
+
         </div>
 
         <button
@@ -431,11 +592,10 @@ export default function Dashboard() {
           <Activity size={17} />
           New Screening
         </button>
+
       </div>
 
-      {/* --------------------------------------------------
-          Error
-      -------------------------------------------------- */}
+      {/* Error */}
 
       {error && (
         <div className="mb-5 border border-red-200 bg-red-50 text-red-600 rounded-md px-4 py-3 text-sm">
@@ -443,9 +603,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* --------------------------------------------------
-          Stats
-      -------------------------------------------------- */}
+      {/* Stats */}
 
       <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-5">
 
@@ -498,20 +656,18 @@ export default function Dashboard() {
 
       </div>
 
-      {/* --------------------------------------------------
-          Analytics
-      -------------------------------------------------- */}
+      {/* Analytics */}
 
       <div className="grid xl:grid-cols-[2fr_1fr] gap-5 mt-5">
 
-        {/* --------------------------------------------------
-            Audit Activity Graph
-        -------------------------------------------------- */}
+        {/* Audit Activity */}
 
         <div className="bg-white border border-slate-200 rounded-lg p-5">
 
           <div className="flex justify-between mb-5">
+
             <div>
+
               <h2 className="font-semibold text-[#17212b]">
                 Audit Activity
               </h2>
@@ -519,28 +675,36 @@ export default function Dashboard() {
               <p className="text-xs text-slate-400 mt-1">
                 Number of audits performed by date
               </p>
+
             </div>
 
             <div className="text-xs text-slate-400">
               Last 6 days
             </div>
+
           </div>
 
           <div className="h-[280px]">
 
             {loading ? (
+
               <div className="h-full flex items-center justify-center text-sm text-slate-400">
                 Loading dashboard data...
               </div>
+
             ) : chartData.length === 0 ? (
+
               <div className="h-full flex items-center justify-center text-sm text-slate-400">
                 No audit activity available.
               </div>
+
             ) : (
+
               <ResponsiveContainer
                 width="100%"
                 height="100%"
               >
+
                 <AreaChart
                   data={chartData}
                   margin={{
@@ -552,6 +716,7 @@ export default function Dashboard() {
                 >
 
                   <defs>
+
                     <linearGradient
                       id="auditGradient"
                       x1="0"
@@ -559,6 +724,7 @@ export default function Dashboard() {
                       x2="0"
                       y2="1"
                     >
+
                       <stop
                         offset="0%"
                         stopColor="#1677b8"
@@ -570,7 +736,9 @@ export default function Dashboard() {
                         stopColor="#1677b8"
                         stopOpacity={0}
                       />
+
                     </linearGradient>
+
                   </defs>
 
                   <CartesianGrid
@@ -609,7 +777,7 @@ export default function Dashboard() {
                     }}
                   />
 
-                  {/* Y AXIS = LOG COUNT */}
+                  {/* Y AXIS = NUMBER OF AUDITS */}
 
                   <YAxis
                     dataKey="audits"
@@ -638,9 +806,13 @@ export default function Dashboard() {
                   {/* TOOLTIP */}
 
                   <Tooltip
-                    labelFormatter={(value, payload) => {
+                    labelFormatter={(
+                      value,
+                      payload
+                    ) => {
                       const timestamp =
-                        payload?.[0]?.payload?.fullDate;
+                        payload?.[0]?.payload
+                          ?.fullDate;
 
                       return formatTooltipDate(
                         timestamp || value
@@ -671,15 +843,16 @@ export default function Dashboard() {
                   />
 
                 </AreaChart>
+
               </ResponsiveContainer>
+
             )}
 
           </div>
+
         </div>
 
-        {/* --------------------------------------------------
-            Risk Summary
-        -------------------------------------------------- */}
+        {/* Risk Distribution */}
 
         <div className="bg-white border border-slate-200 rounded-lg p-5">
 
@@ -754,17 +927,20 @@ export default function Dashboard() {
           </button>
 
         </div>
+
       </div>
 
-      {/* --------------------------------------------------
-          Recent Cases
-      -------------------------------------------------- */}
+      {/* ==================================================
+          RECENT SCREENINGS
+          DATA FROM /audit_logs
+      ================================================== */}
 
       <div className="bg-white border border-slate-200 rounded-lg mt-5">
 
         <div className="p-5 flex justify-between items-center border-b border-slate-100">
 
           <div>
+
             <h2 className="font-semibold text-[#17212b]">
               Recent Screenings
             </h2>
@@ -772,6 +948,7 @@ export default function Dashboard() {
             <p className="text-xs text-slate-400 mt-1">
               Latest identity verification cases
             </p>
+
           </div>
 
           <button
@@ -785,16 +962,25 @@ export default function Dashboard() {
 
         </div>
 
+        {/* Audit error */}
+
+        {auditError && (
+          <div className="px-5 py-3 text-sm text-red-500 bg-red-50 border-b border-red-100">
+            {auditError}
+          </div>
+        )}
+
         <div className="overflow-x-auto">
 
           <table className="w-full text-sm">
 
             <thead className="bg-slate-50 text-xs text-slate-500">
+
               <tr>
 
-                <th className="text-left px-5 py-3 font-semibold">
+                {/* <th className="text-left px-5 py-3 font-semibold">
                   CASE ID
-                </th>
+                </th> */}
 
                 <th className="text-left px-5 py-3 font-semibold">
                   DOCUMENT
@@ -817,148 +1003,133 @@ export default function Dashboard() {
                 </th>
 
               </tr>
+
             </thead>
 
             <tbody>
 
-              <tr className="border-t border-slate-100 hover:bg-slate-50">
+              {auditLoading ? (
 
-                <td className="px-5 py-4 font-mono text-xs text-slate-600">
-                  IDG-2026-08124
-                </td>
+                <tr>
 
-                <td className="px-5 py-4 text-slate-700">
-                  Passport
-                </td>
+                  <td
+                    colSpan="6"
+                    className="px-5 py-8 text-center text-sm text-slate-400"
+                  >
+                    Loading recent screenings...
+                  </td>
 
-                <td className="px-5 py-4 text-slate-700">
-                  Rahul Sharma
-                </td>
+                </tr>
 
-                <td className="px-5 py-4 text-slate-600">
-                  Verified
-                </td>
+              ) : recentScreenings.length === 0 ? (
 
-                <td className="px-5 py-4">
-                  <RiskBadge
-                    level="low"
-                    score={18}
-                  />
-                </td>
+                <tr>
 
-                <td className="px-5 py-4 text-slate-400 text-xs">
-                  14:32
-                </td>
+                  <td
+                    colSpan="6"
+                    className="px-5 py-8 text-center text-sm text-slate-400"
+                  >
+                    No recent screenings available.
+                  </td>
 
-              </tr>
+                </tr>
 
-              <tr className="border-t border-slate-100 hover:bg-slate-50">
+              ) : (
 
-                <td className="px-5 py-4 font-mono text-xs text-slate-600">
-                  IDG-2026-08123
-                </td>
+                recentScreenings.map(
+                  (row, index) => {
 
-                <td className="px-5 py-4 text-slate-700">
-                  Visa
-                </td>
+                    const riskScore =
+                      formatRiskScore(
+                        row.risk_score
+                      );
 
-                <td className="px-5 py-4 text-slate-700">
-                  A. Kumar
-                </td>
+                    const riskLevel =
+                      getRiskLevel(
+                        row.decision,
+                        row.risk_score
+                      );
 
-                <td className="px-5 py-4 text-slate-600">
-                  Review Required
-                </td>
+                    return (
 
-                <td className="px-5 py-4">
-                  <RiskBadge
-                    level="medium"
-                    score={54}
-                  />
-                </td>
+                      <tr
+                        key={`${row.timestamp}-${index}`}
+                        className="border-t border-slate-100 hover:bg-slate-50"
+                      >
 
-                <td className="px-5 py-4 text-slate-400 text-xs">
-                  14:18
-                </td>
+                        {/* CASE ID */}
 
-              </tr>
+                        {/* <td className="px-5 py-4 font-mono text-xs text-slate-600">
+                          IDG-{new Date(
+                            row.timestamp
+                          ).getFullYear()}-
+                          {String(
+                            index + 1
+                          ).padStart(5, "0")}
+                        </td> */}
 
-              <tr className="border-t border-slate-100 hover:bg-slate-50">
+                        {/* DOCUMENT */}
 
-                <td className="px-5 py-4 font-mono text-xs text-slate-600">
-                  IDG-2026-08122
-                </td>
+                        <td className="px-5 py-4 text-slate-700">
+                          {formatDocumentType(
+                            row.document_type
+                          )}
+                        </td>
 
-                <td className="px-5 py-4 text-slate-700">
-                  Passport
-                </td>
+                        {/* SUBJECT */}
 
-                <td className="px-5 py-4 text-slate-700">
-                  Unknown
-                </td>
+                        <td className="px-5 py-4 text-slate-700">
+                          {row.user_name || "Unknown"}
+                        </td>
 
-                <td className="px-5 py-4 text-slate-600">
-                  Rejected
-                </td>
+                        {/* RESULT */}
 
-                <td className="px-5 py-4">
-                  <RiskBadge
-                    level="high"
-                    score={82}
-                  />
-                </td>
+                        <td className="px-5 py-4 text-slate-600">
+                          {row.decision || "-"}
+                        </td>
 
-                <td className="px-5 py-4 text-slate-400 text-xs">
-                  13:57
-                </td>
+                        {/* RISK */}
 
-              </tr>
+                        <td className="px-5 py-4">
 
-              <tr className="border-t border-slate-100 hover:bg-slate-50">
+                          <RiskBadge
+                            level={riskLevel}
+                            score={riskScore}
+                          />
 
-                <td className="px-5 py-4 font-mono text-xs text-slate-600">
-                  IDG-2026-08121
-                </td>
+                        </td>
 
-                <td className="px-5 py-4 text-slate-700">
-                  National ID
-                </td>
+                        {/* TIME */}
 
-                <td className="px-5 py-4 text-slate-700">
-                  Priya Singh
-                </td>
+                        <td className="px-5 py-4 text-slate-400 text-xs">
+                          {formatTime(
+                            row.timestamp
+                          )}
+                        </td>
 
-                <td className="px-5 py-4 text-slate-600">
-                  Verified
-                </td>
+                      </tr>
 
-                <td className="px-5 py-4">
-                  <RiskBadge
-                    level="low"
-                    score={11}
-                  />
-                </td>
+                    );
+                  }
+                )
 
-                <td className="px-5 py-4 text-slate-400 text-xs">
-                  13:41
-                </td>
-
-              </tr>
+              )}
 
             </tbody>
 
           </table>
 
         </div>
+
       </div>
 
     </div>
   );
 }
 
-// --------------------------------------------------
-// Risk Row Component
-// --------------------------------------------------
+// ==================================================
+// RISK ROW COMPONENT
+// ==================================================
 
 function RiskRow({
   label,
